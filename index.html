@@ -128,6 +128,9 @@
   .delx{margin-left:auto;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:4px 6px;}
   .xopen{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:9px 13px;
     font-size:13.5px;font-weight:600;color:var(--note);text-decoration:none;margin-bottom:13px;}
+  .query{background:#0f1320;color:#e9ecf5;border-radius:10px;padding:13px 14px;font-size:13.5px;
+    line-height:1.65;word-break:break-all;white-space:pre-wrap;-webkit-user-select:all;user-select:all;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
   .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;}
   .pill.video{background:var(--video);} .pill.collab{background:#c77b1e;} .pill.other{background:var(--muted);}
   .hide{display:none !important;}
@@ -221,48 +224,35 @@
   <!-- ============ Twitter / X ============ -->
   <section id="panel-tw" class="hide">
     <div class="card">
-      <h2>活動を記録（@sana_natori）</h2>
+      <h2>X 検索クエリを作成</h2>
       <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px;">
-        X は2026年から読み取りが有料化され、無料での自動取得ができません。
-        名取さなの動画投稿・他チャンネルとのコラボなど「目立った活動」を見つけたら、ここに手早く記録して月ごとにまとめてコピーできます。
+        指定アカウントの投稿を「その月の1日〜翌月1日」かつ「キーワードのいずれかを含む」で絞り込む検索文を作ります。
+        作った検索文はXの検索窓に貼るか、下のボタンでそのまま開けます。
       </p>
-      <a class="xopen" href="https://x.com/sana_natori" target="_blank" rel="noopener">Xで @sana_natori を開く ↗</a>
+      <label class="field">
+        <span>アカウント（@は省略可）</span>
+        <input id="tw-acct" type="text" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="sana_natori" />
+      </label>
       <div class="row">
-        <label class="field">
-          <span>日付</span>
-          <input id="tw-date" type="date" />
-        </label>
-        <label class="field">
-          <span>種別</span>
-          <select id="tw-type">
-            <option value="video">動画</option>
-            <option value="collab">コラボ</option>
-            <option value="other">その他</option>
-          </select>
-        </label>
+        <label class="field"><span>年</span><select id="tw-year"></select></label>
+        <label class="field"><span>月</span><select id="tw-month"></select></label>
       </div>
       <label class="field">
-        <span>内容</span>
-        <textarea id="tw-text" placeholder="例：◯◯チャンネルにゲスト出演 / 新曲MV公開 など"></textarea>
+        <span>キーワード（スペースか改行で区切る／いずれかを含む投稿が対象）</span>
+        <textarea id="tw-keywords">動画 配信 コラボ ライブ らいぶ 告知</textarea>
       </label>
-      <label class="field">
-        <span>リンク（任意）</span>
-        <input id="tw-url" type="url" inputmode="url" autocapitalize="off" placeholder="https://x.com/..." />
-      </label>
-      <button class="primary" style="background:var(--note);" onclick="addNote()">記録に追加</button>
+      <button class="primary" style="background:var(--note);" onclick="buildQuery()">検索文を作る</button>
       <p id="tw-status" class="status"></p>
     </div>
 
-    <div class="card">
+    <div id="tw-out" class="card hide">
       <div class="resulthead">
-        <span class="label">記録一覧</span>
-        <div class="row" style="flex:0 0 auto;gap:8px;">
-          <select id="tw-filter" onchange="renderNotes()" style="width:auto;padding:7px 10px;font-size:13px;"></select>
-        </div>
+        <span class="label" id="tw-rangelabel"></span>
       </div>
-      <ul id="tw-list" class="list"></ul>
+      <div class="query" id="tw-query"></div>
+      <a id="tw-open" class="xopen" href="#" target="_blank" rel="noopener" style="margin-top:12px;">Xでこの検索を開く（最新順） ↗</a>
       <div class="copybar">
-        <button id="tw-copy" class="note" onclick="copyNotes()">表示中の一覧をコピー</button>
+        <button id="tw-copy" class="note" onclick="copyQuery()">検索文をコピー</button>
       </div>
     </div>
   </section>
@@ -299,25 +289,29 @@ function usePreset(handle, liveOnly){
 /* ---------- 年/月セレクトの初期化 ---------- */
 (function initSelectors(){
   const now = new Date();
-  const ySel = document.getElementById('yt-year');
-  const mSel = document.getElementById('yt-month');
   const thisYear = now.getFullYear();
-  for(let y=thisYear; y>=thisYear-8; y--){
-    const o=document.createElement('option'); o.value=y; o.textContent=y+"年"; ySel.appendChild(o);
-  }
-  for(let m=1;m<=12;m++){
-    const o=document.createElement('option'); o.value=m; o.textContent=m+"月"; mSel.appendChild(o);
-  }
-  ySel.value = thisYear;
-  mSel.value = now.getMonth()+1;
+  const fill = (ySel, mSel)=>{
+    for(let y=thisYear; y>=thisYear-8; y--){
+      const o=document.createElement('option'); o.value=y; o.textContent=y+"年"; ySel.appendChild(o);
+    }
+    for(let m=1;m<=12;m++){
+      const o=document.createElement('option'); o.value=m; o.textContent=m+"月"; mSel.appendChild(o);
+    }
+    ySel.value = thisYear;
+    mSel.value = now.getMonth()+1;
+  };
+  fill(document.getElementById('yt-year'), document.getElementById('yt-month'));
+  fill(document.getElementById('tw-year'), document.getElementById('tw-month'));
 
-  // 保存済みキー復元
+  // 保存済みの値を復元
   const savedKey = store.get('yt_key');
   if(savedKey) document.getElementById('yt-key').value = savedKey;
   const savedCh = store.get('yt_channel');
   if(savedCh) document.getElementById('yt-channel').value = savedCh;
-
-  document.getElementById('tw-date').value = isoLocalDate(now);
+  const savedAcct = store.get('tw_acct');
+  if(savedAcct) document.getElementById('tw-acct').value = savedAcct;
+  const savedKw = store.get('tw_keywords');
+  if(savedKw) document.getElementById('tw-keywords').value = savedKw;
 })();
 
 function isoLocalDate(d){
@@ -350,7 +344,6 @@ function switchTop(which){
   document.getElementById('tab-tw').setAttribute('aria-selected', which==='tw');
   document.getElementById('panel-yt').classList.toggle('hide', which!=='yt');
   document.getElementById('panel-tw').classList.toggle('hide', which!=='tw');
-  if(which==='tw'){ buildNoteFilter(); renderNotes(); }
 }
 
 let currentKind = 'live';
@@ -568,90 +561,48 @@ function copyYouTube(){
   copyText(text, 'yt-copy', currentKind);
 }
 
-/* ===================== Twitter 手動記録 ===================== */
-function loadNotes(){
-  try{ return JSON.parse(store.get('tw_notes')||'[]'); }catch(e){ return []; }
-}
-function saveNotes(arr){ store.set('tw_notes', JSON.stringify(arr)); }
+/* ===================== Twitter / X 検索クエリ生成 ===================== */
+function pad2(n){ return String(n).padStart(2,'0'); }
 
-function addNote(){
-  const date = document.getElementById('tw-date').value;
-  const type = document.getElementById('tw-type').value;
-  const text = document.getElementById('tw-text').value.trim();
-  const url  = document.getElementById('tw-url').value.trim();
-  if(!date){ setStatus('tw-status','日付を選んでください。','err'); return; }
-  if(!text){ setStatus('tw-status','内容を入力してください。','err'); return; }
-  const notes = loadNotes();
-  notes.push({ id:Date.now(), date, type, text, url });
-  saveNotes(notes);
-  document.getElementById('tw-text').value='';
-  document.getElementById('tw-url').value='';
-  setStatus('tw-status','記録しました。','ok');
-  buildNoteFilter(); renderNotes();
-}
+function buildQuery(){
+  const acct = document.getElementById('tw-acct').value.trim().replace(/^@+/,'');
+  const year = +document.getElementById('tw-year').value;
+  const month = +document.getElementById('tw-month').value;
+  const kwRaw = document.getElementById('tw-keywords').value;
 
-function deleteNote(id){
-  saveNotes(loadNotes().filter(n=>n.id!==id));
-  buildNoteFilter(); renderNotes();
-}
+  if(!acct){ setStatus('tw-status','アカウント名を入力してください。','err'); return; }
 
-function dowFromIso(iso){
-  // iso = YYYY-MM-DD（その日のJST曜日）
-  const [y,m,d] = iso.split('-').map(Number);
-  return new Date(Date.UTC(y,m-1,d)).getUTCDay();
-}
+  // キーワードを区切って OR でまとめる（スペース・改行・カンマ・読点・全角スペース）
+  const kws = kwRaw.split(/[\s,、　]+/).filter(Boolean);
 
-function buildNoteFilter(){
-  const sel = document.getElementById('tw-filter');
-  const prev = sel.value;
-  const months = new Set();
-  for(const n of loadNotes()) months.add(n.date.slice(0,7));
-  const sorted = [...months].sort().reverse();
-  sel.innerHTML = '<option value="all">すべて</option>' +
-    sorted.map(m=>`<option value="${m}">${m.replace('-','年')}月</option>`).join('');
-  if([...sel.options].some(o=>o.value===prev)) sel.value = prev;
-}
+  // 期間：その月の1日 〜 翌月1日（until は当日を含まない＝月末まで）
+  const since = `${year}-${pad2(month)}-01`;
+  const ny = month===12 ? year+1 : year;
+  const nm = month===12 ? 1 : month+1;
+  const until = `${ny}-${pad2(nm)}-01`;
 
-const TYPE_LABEL = {video:'動画', collab:'コラボ', other:'その他'};
-function renderNotes(){
-  const list = document.getElementById('tw-list');
-  const filter = document.getElementById('tw-filter').value || 'all';
-  let notes = loadNotes();
-  if(filter!=='all') notes = notes.filter(n=>n.date.startsWith(filter));
-  notes.sort((a,b)=> a.date<b.date?-1:(a.date>b.date?1:a.id-b.id));
-  list.innerHTML='';
-  if(!notes.length){
-    list.innerHTML = '<li class="empty">まだ記録がありません。上のフォームから追加できます。</li>';
-    return;
+  let q = `from:${acct}`;
+  if(kws.length){
+    const terms = kws.map(k => k.includes(' ') ? `"${k}"` : k).join(' OR ');
+    q += ` (${terms})`;
   }
-  for(const n of notes){
-    const dow = DOW[dowFromIso(n.date)];
-    const li = document.createElement('li');
-    li.innerHTML =
-      `<div class="item-top">
-         <span class="date">${n.date}</span>
-         <span class="dow">(${dow})</span>
-         <span class="pill ${n.type}" style="margin-left:8px;">${TYPE_LABEL[n.type]}</span>
-         <button class="delx" onclick="deleteNote(${n.id})">削除</button>
-       </div>
-       <div class="title">${escapeHtml(n.text)}</div>
-       ${n.url?`<div class="meta"><a href="${escapeAttr(n.url)}" target="_blank" rel="noopener">${escapeHtml(n.url)}</a></div>`:''}`;
-    list.appendChild(li);
-  }
+  q += ` since:${since} until:${until}`;
+
+  document.getElementById('tw-query').textContent = q;
+  document.getElementById('tw-open').href =
+    'https://x.com/search?q=' + encodeURIComponent(q) + '&src=typed_query&f=live';
+  document.getElementById('tw-rangelabel').textContent =
+    `${year}年${month}月（${since} 〜 ${until}）／ キーワード ${kws.length}件`;
+  document.getElementById('tw-out').classList.remove('hide');
+  setStatus('tw-status','検索文を作成しました。','ok');
+
+  // 入力を保存
+  store.set('tw_acct', acct);
+  store.set('tw_keywords', kwRaw);
 }
 
-function copyNotes(){
-  const filter = document.getElementById('tw-filter').value || 'all';
-  let notes = loadNotes();
-  if(filter!=='all') notes = notes.filter(n=>n.date.startsWith(filter));
-  notes.sort((a,b)=> a.date<b.date?-1:(a.date>b.date?1:a.id-b.id));
-  const label = filter==='all' ? 'すべて' : filter.replace('-','年')+'月';
-  const head = `【Twitter/X 活動記録：${label}】\n`;
-  const lines = notes.map(n=>{
-    const dow = DOW[dowFromIso(n.date)];
-    return `${n.date}(${dow}) [${TYPE_LABEL[n.type]}] ${n.text}${n.url?'  '+n.url:''}`;
-  });
-  copyText(head + (lines.length?lines.join('\n'):'（なし）'), 'tw-copy', 'note');
+function copyQuery(){
+  copyText(document.getElementById('tw-query').textContent, 'tw-copy', 'note');
 }
 
 /* ===================== 共通：コピー & エスケープ ===================== */
