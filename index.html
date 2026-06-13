@@ -151,6 +151,7 @@
   <div class="toptabs" role="tablist">
     <button id="tab-yt" role="tab" aria-selected="true" onclick="switchTop('yt')">YouTube</button>
     <button id="tab-tw" role="tab" aria-selected="false" onclick="switchTop('tw')">Twitter / X</button>
+    <button id="tab-ba" role="tab" aria-selected="false" onclick="switchTop('ba')">ブルアカらいぶ</button>
   </div>
 
   <!-- ============ YouTube ============ -->
@@ -257,6 +258,25 @@
     </div>
   </section>
 
+  <!-- ============ ブルアカらいぶ ============ -->
+  <section id="panel-ba" class="hide">
+    <div class="card" id="ba-next-card">
+      <h2>来月のブルアカらいぶ予報</h2>
+      <div id="ba-next-content" style="font-size:15px;line-height:1.7;"></div>
+    </div>
+    <div class="card">
+      <h2>歴代ブルアカらいぶ 放送履歴</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
+        ※「第N週の◯曜日」パターンを分析して次回予測に使用しています。
+      </p>
+      <ul class="list" id="ba-history-list"></ul>
+    </div>
+    <div class="card">
+      <h2>パターン分析</h2>
+      <div id="ba-pattern-content" style="font-size:13.5px;line-height:1.8;color:var(--ink);"></div>
+    </div>
+  </section>
+
 </div>
 
 <script>
@@ -342,8 +362,11 @@ function fmtTime(p){ return `${p.hh}:${p.mm}`; }
 function switchTop(which){
   document.getElementById('tab-yt').setAttribute('aria-selected', which==='yt');
   document.getElementById('tab-tw').setAttribute('aria-selected', which==='tw');
+  document.getElementById('tab-ba').setAttribute('aria-selected', which==='ba');
   document.getElementById('panel-yt').classList.toggle('hide', which!=='yt');
   document.getElementById('panel-tw').classList.toggle('hide', which!=='tw');
+  document.getElementById('panel-ba').classList.toggle('hide', which!=='ba');
+  if(which==='ba') renderBluearchiveLive();
 }
 
 let currentKind = 'live';
@@ -628,6 +651,254 @@ function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function escapeAttr(s){ return escapeHtml(s); }
+/* ===================== ブルアカらいぶ ===================== */
+// type: "live"=らいぶ本番, "anniv"=アニバーサリーデー, "kouyasai"=後夜祭
+const BA_LIVE_HISTORY = [
+  { label:"1周年",       date:"2022-01-21", time:"19:00", note:"ふぁーすとあにばSP！",                              type:"live" },
+  { label:"1周年後夜祭",  date:"2022-01-22", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"1.5周年",     date:"2022-07-16", time:"19:00", note:"夏のブルアカらいぶ！1.5周年記念すぺしゃる！",       type:"live" },
+  { label:"1.5周年後夜祭",date:"2022-07-17", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"2周年",       date:"2023-01-22", time:"19:00", note:"せかんどあにばSP！（ブルアカふぇす会場）",          type:"live" },
+  { label:"2周年後夜祭",  date:"2023-01-23", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"2.5周年",     date:"2023-07-23", time:"17:00", note:"夏のブルアカらいぶ！あっちっちSP",                  type:"live" },
+  { label:"2.5周年後夜祭",date:"2023-07-24", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"3周年",       date:"2024-01-21", time:"10:00", note:"さーどあにばSP！（ふぇす Day2）",                   type:"live" },
+  { label:"3周年後夜祭",  date:"2024-01-22", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"3.5周年",     date:"2024-07-21", time:"10:00", note:"夏のブルアカらいぶ！はっぴ～さま～しょ～たいむ！SP",type:"live" },
+  { label:"3.5周年後夜祭",date:"2024-07-22", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"4周年",       date:"2025-01-18", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day2）",                 type:"live" },
+  { label:"4周年後夜祭",  date:"2025-01-19", time:null,    note:"らいぶ翌日（ふぇす Day3）",                        type:"kouyasai" },
+  { label:"4.5周年",     date:"2025-07-19", time:"18:30", note:"夏のブルアカらいぶ！さんしゃいんさまーぱーてぃー！SP",type:"live" },
+  { label:"4.5周年後夜祭",date:"2025-07-20", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"5周年 Day1",  date:"2026-01-17", time:"10:00", note:"ふぃふすあにばSP！ Day1（ふぇす）",                 type:"live" },
+  { label:"5周年 Day2",  date:"2026-01-18", time:"10:00", note:"ふぃふすあにばSP！ Day2（ふぇす）",                 type:"live" },
+  { label:"5周年後夜祭",  date:"2026-01-19", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+];
+
+// 月の第N週・曜日を計算
+function weekOfMonth(dateStr){
+  const d = new Date(dateStr + "T00:00:00");
+  const day = d.getDate();
+  const dow = d.getDay(); // 0=日
+  const week = Math.ceil(day / 7);
+  const dowNames = ["日","月","火","水","木","金","土"];
+  return { week, dow, dowName: dowNames[dow], day };
+}
+
+function renderBluearchiveLive(){
+  // 履歴リスト
+  const ul = document.getElementById('ba-history-list');
+  if(ul.children.length > 0) return; // 再描画しない
+  BA_LIVE_HISTORY.forEach(item => {
+    const w = weekOfMonth(item.date);
+    const d = new Date(item.date + "T00:00:00");
+    const yyyy = d.getFullYear(), mm = d.getMonth()+1, dd = d.getDate();
+    const dowCls = w.dow===0?'sun':(w.dow===6?'sat':'');
+    const li = document.createElement('li');
+
+    const isLive     = item.type === 'live';
+    const isKouyasai = item.type === 'kouyasai';
+    const isAnniv    = item.type === 'anniv';
+
+    // 行スタイル
+    const rowBg = isAnniv ? 'background:#fff8e1;border-radius:8px;padding:8px 10px;margin:-4px -4px;'
+                : isKouyasai ? 'background:#f0f4ff;border-radius:8px;padding:8px 10px;margin:-4px -4px;'
+                : '';
+
+    // タイムカラム
+    const timeHtml = isLive
+      ? `<span class="time live" style="margin-left:auto;">${item.time}〜</span>`
+      : isKouyasai
+        ? `<span style="margin-left:auto;font-size:13px;color:var(--note);font-weight:700;">🌙 後夜祭</span>`
+        : `<span style="margin-left:auto;font-size:13px;color:#c77b1e;font-weight:700;">🎂 記念日</span>`;
+
+    // 週表示は放送日のみ
+    const weekHtml = isLive
+      ? `<span style="font-size:13px;color:var(--muted);margin-left:4px;">第${w.week}${w.dowName}曜</span>`
+      : '';
+
+    li.innerHTML =
+      `<div style="${rowBg}">
+        <div class="item-top">
+          <span class="date">${yyyy}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}</span>
+          <span class="dow ${dowCls}">(${w.dowName})</span>
+          ${weekHtml}
+          ${timeHtml}
+        </div>
+        <div class="title" style="font-size:14px;">${item.label}
+          <span style="font-size:12px;color:var(--muted);">— ${item.note}</span>
+        </div>
+      </div>`;
+    ul.appendChild(li);
+  });
+
+  // パターン分析
+  analyzeAndRenderPattern();
+  renderNextMonthPrediction();
+}
+
+function analyzeAndRenderPattern(){
+  const el = document.getElementById('ba-pattern-content');
+
+  // liveのみ対象
+  const jan = BA_LIVE_HISTORY.filter(x => x.type==='live' && new Date(x.date+"T00:00:00").getMonth() === 0);
+  const jul = BA_LIVE_HISTORY.filter(x => x.type==='live' && new Date(x.date+"T00:00:00").getMonth() === 6);
+
+  function summarize(arr, label){
+    const weeks = arr.map(x => weekOfMonth(x.date));
+    const weekCounts = {};
+    const dowCounts = {};
+    weeks.forEach(w => {
+      weekCounts[w.week] = (weekCounts[w.week]||0) + 1;
+      dowCounts[w.dowName] = (dowCounts[w.dowName]||0) + 1;
+    });
+    const topWeek = Object.entries(weekCounts).sort((a,b)=>b[1]-a[1])[0];
+    const topDow  = Object.entries(dowCounts).sort((a,b)=>b[1]-a[1])[0];
+    const times = arr.map(x=>x.time);
+    const topTime = [...new Set(times)].sort((a,b)=> times.filter(t=>t===b).length - times.filter(t=>t===a).length)[0];
+    return `<b>${label}</b>：第${topWeek[0]}週の${topDow[0]}曜日（${topWeek[1]}/${arr.length}回）、開始時刻は <b>${topTime}</b> が最多`;
+  }
+
+  el.innerHTML =
+    summarize(jan, "周年系（1月）") + "<br>" +
+    summarize(jul, ".5周年系（7月）") + "<br><br>" +
+    `<span style="color:var(--muted);font-size:12.5px;">※第N週 = その月の1日から数えて何番目の週か（例：21日は第3週）</span>`;
+}
+
+function renderNextMonthPrediction(){
+  const el = document.getElementById('ba-next-content');
+  const now = new Date();
+  // 来月
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth()+1, 1);
+  const nextYear = nextMonthDate.getFullYear();
+  const nextMonth = nextMonthDate.getMonth() + 1; // 1-indexed
+
+  // 周年放送対象月か？（1月 or 7月）
+  const isAnnivMonth = (nextMonth === 1 || nextMonth === 7);
+
+  if(!isAnnivMonth){
+    el.innerHTML =
+      `<div style="color:var(--muted);padding:10px 0;">
+        <b>${nextYear}年${nextMonth}月</b>は周年・半周年の放送予定月ではありません。<br>
+        ブルアカらいぶ（周年放送）は <b>例年1月・7月</b> に開催されます。
+      </div>`;
+    return;
+  }
+
+  // 対象系のデータ
+  const isSummer = nextMonth === 7;
+  const targetArr = BA_LIVE_HISTORY.filter(x => {
+    if(x.type !== 'live') return false;
+    const m = new Date(x.date+"T00:00:00").getMonth();
+    return isSummer ? m === 6 : m === 0;
+  });
+
+  // 週と曜日の頻度集計
+  const weekCounts = {};
+  const dowCounts  = {};
+  const timeCounts = {};
+  targetArr.forEach(x => {
+    const w = weekOfMonth(x.date);
+    weekCounts[w.week] = (weekCounts[w.week]||0) + 1;
+    dowCounts[w.dow]   = (dowCounts[w.dow]  ||0) + 1;
+    timeCounts[x.time] = (timeCounts[x.time]||0) + 1;
+  });
+
+  const topWeekNum = +Object.entries(weekCounts).sort((a,b)=>b[1]-a[1])[0][0];
+  const topDow     = +Object.entries(dowCounts ).sort((a,b)=>b[1]-a[1])[0][0];
+  const topTime    = Object.entries(timeCounts ).sort((a,b)=>b[1]-a[1])[0][0];
+  const DOW_JP = ["日","月","火","水","木","金","土"];
+
+  // 来月の「第topWeekNum週のtopDow曜日」の日付を算出
+  function getNthWeekday(year, month1, weekNum, dow){
+    // month1: 1-indexed
+    const d = new Date(year, month1-1, 1);
+    const firstDow = d.getDay();
+    let offset = (dow - firstDow + 7) % 7;
+    let date = 1 + offset + (weekNum - 1) * 7;
+    const lastDay = new Date(year, month1, 0).getDate();
+    if(date > lastDay) return null;
+    return date;
+  }
+
+  // 候補日を複数算出（週順位上位2位、曜日上位2位の組み合わせ）
+  const weekEntries = Object.entries(weekCounts).sort((a,b)=>b[1]-a[1]).slice(0,2).map(e=>+e[0]);
+  const dowEntries  = Object.entries(dowCounts ).sort((a,b)=>b[1]-a[1]).slice(0,2).map(e=>+e[0]);
+
+  const candidates = [];
+  weekEntries.forEach(wn => {
+    dowEntries.forEach(dn => {
+      const dd = getNthWeekday(nextYear, nextMonth, wn, dn);
+      if(dd !== null){
+        const score = (weekCounts[wn]||0) + (dowCounts[dn]||0);
+        candidates.push({ week: wn, dow: dn, day: dd, score });
+      }
+    });
+  });
+  candidates.sort((a,b) => b.score - a.score);
+
+  const suffix = isSummer ? "（.5周年）" : "（周年）";
+  const annivNum = isSummer
+    ? (nextYear - 2021) - 1 + 0.5  // 例: 2026→5.5
+    : (nextYear - 2022) + 1;        // 例: 2022→1
+
+  // 小数点表示
+  const annivLabel = Number.isInteger(annivNum) ? annivNum + "周年" : annivNum + "周年";
+
+  let html = `<div style="background:#fff3cd;border-radius:10px;padding:12px 14px;margin-bottom:14px;border:1px solid #ffd777;">
+    <div style="font-weight:700;font-size:16px;margin-bottom:4px;">⚡ ${nextYear}年${nextMonth}月は<span style="color:var(--live);">ブルアカらいぶ放送月</span>の可能性あり</div>
+    <div style="font-size:13.5px;color:#555;">${annivLabel}${suffix} の放送が予想されます</div>
+  </div>`;
+
+  html += `<div style="font-weight:700;margin-bottom:8px;">📅 放送日候補（過去パターンより）</div>`;
+
+  candidates.forEach((c, i) => {
+    const isMain = i === 0;
+    const dowCls = c.dow===0?'color:var(--live)':(c.dow===6?'color:var(--video)':'');
+    html += `<div style="
+        background:${isMain?'var(--ink)':'#f3f4f7'};
+        color:${isMain?'#fff':'var(--ink)'};
+        border-radius:10px;padding:12px 14px;margin-bottom:8px;
+        border:1px solid ${isMain?'var(--ink)':'var(--line)'};">
+      <div style="font-size:${isMain?'16':'14'}px;font-weight:700;">
+        ${i===0?'◉ 本命 ':'◎ 候補 '}${nextYear}年${nextMonth}月${c.day}日（<span style="${isMain?'':''+dowCls}">${DOW_JP[c.dow]}</span>）
+        <span style="font-size:13px;font-weight:400;opacity:.8;margin-left:4px;">第${c.week}${DOW_JP[c.dow]}曜</span>
+      </div>
+      <div style="font-size:13px;opacity:${isMain?'.85':'1'};margin-top:3px;">
+        開始時刻：${topTime}〜（予想）
+      </div>
+    </div>`;
+  });
+
+  // 本命日の翌日＝後夜祭予想
+  if(candidates.length > 0){
+    const mainDay = candidates[0].day;
+    const kouyasaiDay = mainDay + 1;
+    const lastDay = new Date(nextYear, nextMonth, 0).getDate();
+
+    const kouyasaiDateStr = kouyasaiDay <= lastDay
+      ? `${nextYear}年${nextMonth}月${kouyasaiDay}日`
+      : `${nextYear}年${nextMonth+1}月1日`;
+    const kouyasaiDow = kouyasaiDay <= lastDay
+      ? DOW_JP[new Date(nextYear, nextMonth-1, kouyasaiDay).getDay()]
+      : DOW_JP[new Date(nextYear, nextMonth, 1).getDay()];
+
+    html += `<div style="margin-top:14px;font-weight:700;margin-bottom:8px;">🌙 後夜祭 予想</div>`;
+    html += `<div style="background:#f0f4ff;border-radius:10px;padding:11px 14px;margin-bottom:8px;border:1px solid #c8d4f5;">
+      <div style="font-size:14px;font-weight:700;color:var(--note);">🌙 後夜祭（らいぶ翌日）</div>
+      <div style="font-size:14px;margin-top:3px;">${kouyasaiDateStr}（${kouyasaiDow}）</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">本命放送日の翌日</div>
+    </div>`;
+  }
+
+  html += `<div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6;">
+    ※過去 ${targetArr.length} 回の${isSummer?".5周年":"周年"}放送の曜日・週パターンから算出。<br>
+    公式発表前の予測であり、実際の日程と異なる場合があります。
+  </div>`;
+
+  el.innerHTML = html;
+}
+
 </script>
 </body>
 </html>
