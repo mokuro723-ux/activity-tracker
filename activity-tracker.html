@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="活動トラッカー" />
+<title>活動トラッカー</title>
+<style>
+  :root{
+    --bg:#f3f4f7;
+    --surface:#ffffff;
+    --ink:#181c24;
+    --muted:#697184;
+    --line:#e4e6ec;
+    --live:#e23b2e;       /* 配信＝放送の赤 */
+    --video:#2f6f8f;      /* 動画＝落ち着いた青 */
+    --note:#7a5cc7;       /* Twitterメモ＝紫 */
+    --header:#14171f;
+    --ok:#1f9d63;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(20,23,31,.06), 0 6px 18px rgba(20,23,31,.05);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;
+    font-size:16px;line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:680px;margin:0 auto;padding:0 14px calc(40px + env(safe-area-inset-bottom));}
+  header.app{
+    background:var(--header);color:#fff;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    position:sticky;top:0;z-index:20;
+  }
+  header.app h1{font-size:18px;margin:0;letter-spacing:.04em;font-weight:700;}
+  header.app p{margin:4px 0 0;font-size:12.5px;color:#aeb4c2;letter-spacing:.02em;}
+
+  /* 最上位タブ */
+  .toptabs{display:flex;gap:6px;margin:14px 0;}
+  .toptabs button{
+    flex:1;border:1px solid var(--line);background:var(--surface);color:var(--muted);
+    padding:11px 8px;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;
+  }
+  .toptabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:14px;margin-bottom:14px;}
+  .card h2{font-size:13px;letter-spacing:.06em;text-transform:none;color:var(--muted);margin:0 0 10px;font-weight:700;}
+
+  label.field{display:block;margin-bottom:11px;}
+  label.field span{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .chip{border:1px solid var(--line);background:#fbfbfc;color:var(--ink);border-radius:999px;
+    padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer;}
+  .chip:active{background:#eef0f4;}
+  label.check{display:flex;gap:9px;align-items:flex-start;margin:2px 0 13px;font-size:13px;color:var(--ink);cursor:pointer;}
+  label.check input{width:auto;margin-top:2px;flex:0 0 auto;}
+  label.check span{color:var(--muted);line-height:1.45;}
+  input,select,textarea{
+    width:100%;font:inherit;color:var(--ink);background:#fbfbfc;
+    border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+  }
+  textarea{resize:vertical;min-height:64px;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--ink);outline-offset:1px;border-color:transparent;}
+  .row{display:flex;gap:10px;}
+  .row > *{flex:1;}
+
+  .keyrow{position:relative;}
+  .keyrow .toggle{position:absolute;right:8px;top:32px;background:none;border:none;color:var(--muted);
+    font-size:12.5px;font-weight:600;cursor:pointer;padding:6px;}
+
+  button.primary{
+    width:100%;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
+    background:var(--live);color:#fff;cursor:pointer;letter-spacing:.03em;
+  }
+  button.primary:disabled{opacity:.5;}
+  button.ghost{
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    border-radius:10px;padding:9px 12px;font-size:13.5px;font-weight:600;cursor:pointer;
+  }
+
+  /* サブタブ（配信/動画） */
+  .subtabs{display:flex;gap:6px;margin-bottom:12px;}
+  .subtabs button{flex:1;border:1px solid var(--line);background:var(--surface);
+    padding:10px;border-radius:10px;font-weight:700;font-size:14px;color:var(--muted);cursor:pointer;}
+  .subtabs button[data-kind="live"][aria-selected="true"]{background:var(--live);color:#fff;border-color:var(--live);}
+  .subtabs button[data-kind="video"][aria-selected="true"]{background:var(--video);color:#fff;border-color:var(--video);}
+  .count{font-variant-numeric:tabular-nums;opacity:.85;font-weight:600;}
+
+  .resulthead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;}
+  .resulthead .label{font-size:13px;color:var(--muted);font-weight:700;}
+
+  ul.list{list-style:none;margin:0;padding:0;}
+  ul.list li{padding:11px 0;border-top:1px solid var(--line);}
+  ul.list li:first-child{border-top:none;}
+  .item-top{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums;}
+  .date{font-weight:700;font-size:14.5px;white-space:nowrap;}
+  .dow{font-size:13px;color:var(--muted);}
+  .dow.sun{color:var(--live);} .dow.sat{color:var(--video);}
+  .time{margin-left:auto;font-weight:700;font-size:14.5px;white-space:nowrap;}
+  .time.live{color:var(--live);} .time.video{color:var(--video);} .time.note{color:var(--note);}
+  .title{margin-top:3px;font-size:14.5px;word-break:break-word;}
+  .meta{margin-top:3px;font-size:12px;color:var(--muted);}
+  .meta a{color:var(--video);}
+
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:22px 8px;}
+  .status{font-size:13.5px;margin:6px 0 0;min-height:18px;}
+  .status.err{color:var(--live);} .status.ok{color:var(--ok);}
+
+  details.help{margin-top:12px;font-size:13.5px;color:var(--muted);}
+  details.help summary{cursor:pointer;font-weight:600;color:var(--ink);}
+  details.help ol{padding-left:18px;}
+  details.help a{color:var(--video);}
+  code{background:#eef0f4;border-radius:5px;padding:1px 5px;font-size:12.5px;}
+
+  .copybar{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(243,244,247,0),var(--bg) 30%);
+    padding:10px 0 calc(8px + env(safe-area-inset-bottom));margin-top:6px;}
+  .copybar button{width:100%;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;}
+  .copybar button.live{background:var(--live);}
+  .copybar button.video{background:var(--video);}
+  .copybar button.note{background:var(--note);}
+
+  .delx{margin-left:auto;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:4px 6px;}
+  .xopen{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:9px 13px;
+    font-size:13.5px;font-weight:600;color:var(--note);text-decoration:none;margin-bottom:13px;}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;}
+  .pill.video{background:var(--video);} .pill.collab{background:#c77b1e;} .pill.other{background:var(--muted);}
+  .hide{display:none !important;}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--ink);
+    border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none;}}
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>活動トラッカー</h1>
+  <p>推しの配信・動画スケジュールを把握して有給を計画</p>
+</header>
+
+<div class="wrap">
+
+  <div class="toptabs" role="tablist">
+    <button id="tab-yt" role="tab" aria-selected="true" onclick="switchTop('yt')">YouTube</button>
+    <button id="tab-tw" role="tab" aria-selected="false" onclick="switchTop('tw')">Twitter / X</button>
+  </div>
+
+  <!-- ============ YouTube ============ -->
+  <section id="panel-yt">
+    <div class="card">
+      <h2>検索条件</h2>
+      <div class="chips">
+        <button type="button" class="chip" onclick="usePreset('@sana_natori', false)">名取さな</button>
+        <button type="button" class="chip" onclick="usePreset('@bluearchive_jp', true)">ブルーアーカイブ</button>
+      </div>
+      <label class="field">
+        <span>チャンネル（@ハンドル / URL / チャンネルID）</span>
+        <input id="yt-channel" type="text" inputmode="url" autocapitalize="off" autocorrect="off"
+               placeholder="例：@hololive または UCxxxx... または チャンネルURL" />
+      </label>
+      <div class="row">
+        <label class="field">
+          <span>年</span>
+          <select id="yt-year"></select>
+        </label>
+        <label class="field">
+          <span>月</span>
+          <select id="yt-month"></select>
+        </label>
+      </div>
+      <label class="field keyrow">
+        <span>YouTube API キー（端末内に保存）</span>
+        <input id="yt-key" type="password" autocapitalize="off" autocorrect="off" autocomplete="off"
+               placeholder="AIza... ※下の手順で無料取得" />
+        <button type="button" class="toggle" onclick="toggleKey()">表示</button>
+      </label>
+      <label class="check">
+        <input id="yt-premiere" type="checkbox" checked />
+        <span>生放送のみ（PVのプレミア公開は配信から除外し、動画扱いにする）</span>
+      </label>
+      <button id="yt-go" class="primary" onclick="runYouTube()">この月の活動を取得</button>
+      <p id="yt-status" class="status"></p>
+
+      <details class="help">
+        <summary>APIキーの取り方（初回のみ・無料）</summary>
+        <ol>
+          <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> を開く</li>
+          <li>プロジェクトを新規作成</li>
+          <li>「APIとサービス」→「ライブラリ」で <code>YouTube Data API v3</code> を有効化</li>
+          <li>「認証情報」→「認証情報を作成」→「APIキー」でキーを発行</li>
+          <li>発行された <code>AIza...</code> を上の欄に貼り付け</li>
+        </ol>
+        <p>※このファイル（ローカル）から使う場合、キーのアプリケーション制限は「なし」にしてください（HTTPリファラー制限だとブロックされます）。キーは端末内にのみ保存され、外部送信されません。</p>
+      </details>
+    </div>
+
+    <div id="yt-results" class="card hide">
+      <div class="subtabs" role="tablist">
+        <button data-kind="live" role="tab" aria-selected="true" onclick="switchKind('live')">
+          配信 <span class="count" id="cnt-live"></span>
+        </button>
+        <button data-kind="video" role="tab" aria-selected="false" onclick="switchKind('video')">
+          動画 <span class="count" id="cnt-video"></span>
+        </button>
+      </div>
+      <div class="resulthead">
+        <span class="label" id="yt-rangelabel"></span>
+      </div>
+      <ul id="yt-list" class="list"></ul>
+      <div class="copybar">
+        <button id="yt-copy" class="live" onclick="copyYouTube()">表示中の一覧をコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Twitter / X ============ -->
+  <section id="panel-tw" class="hide">
+    <div class="card">
+      <h2>活動を記録（@sana_natori）</h2>
+      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px;">
+        X は2026年から読み取りが有料化され、無料での自動取得ができません。
+        名取さなの動画投稿・他チャンネルとのコラボなど「目立った活動」を見つけたら、ここに手早く記録して月ごとにまとめてコピーできます。
+      </p>
+      <a class="xopen" href="https://x.com/sana_natori" target="_blank" rel="noopener">Xで @sana_natori を開く ↗</a>
+      <div class="row">
+        <label class="field">
+          <span>日付</span>
+          <input id="tw-date" type="date" />
+        </label>
+        <label class="field">
+          <span>種別</span>
+          <select id="tw-type">
+            <option value="video">動画</option>
+            <option value="collab">コラボ</option>
+            <option value="other">その他</option>
+          </select>
+        </label>
+      </div>
+      <label class="field">
+        <span>内容</span>
+        <textarea id="tw-text" placeholder="例：◯◯チャンネルにゲスト出演 / 新曲MV公開 など"></textarea>
+      </label>
+      <label class="field">
+        <span>リンク（任意）</span>
+        <input id="tw-url" type="url" inputmode="url" autocapitalize="off" placeholder="https://x.com/..." />
+      </label>
+      <button class="primary" style="background:var(--note);" onclick="addNote()">記録に追加</button>
+      <p id="tw-status" class="status"></p>
+    </div>
+
+    <div class="card">
+      <div class="resulthead">
+        <span class="label">記録一覧</span>
+        <div class="row" style="flex:0 0 auto;gap:8px;">
+          <select id="tw-filter" onchange="renderNotes()" style="width:auto;padding:7px 10px;font-size:13px;"></select>
+        </div>
+      </div>
+      <ul id="tw-list" class="list"></ul>
+      <div class="copybar">
+        <button id="tw-copy" class="note" onclick="copyNotes()">表示中の一覧をコピー</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ---------- 安全なローカル保存（ファイル/ホーム画面では有効、サンドボックスでは自動的に無効化） ---------- */
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+};
+
+const DOW = ["日","月","火","水","木","金","土"];
+const PREMIERE_MAX_SEC = 16*60; // この秒数未満の「ライブ」はプレミア公開とみなし動画扱い
+
+// ISO8601期間(PT1H2M3S)を秒に変換
+function parseDuration(iso){
+  if(!iso) return null;
+  const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if(!m) return null;
+  return (+(m[1]||0))*3600 + (+(m[2]||0))*60 + (+(m[3]||0));
+}
+
+// チャンネルのワンタップ選択
+function usePreset(handle, liveOnly){
+  document.getElementById('yt-channel').value = handle;
+  document.getElementById('yt-premiere').checked = !!liveOnly;
+  store.set('yt_channel', handle);
+}
+
+/* ---------- 年/月セレクトの初期化 ---------- */
+(function initSelectors(){
+  const now = new Date();
+  const ySel = document.getElementById('yt-year');
+  const mSel = document.getElementById('yt-month');
+  const thisYear = now.getFullYear();
+  for(let y=thisYear; y>=thisYear-8; y--){
+    const o=document.createElement('option'); o.value=y; o.textContent=y+"年"; ySel.appendChild(o);
+  }
+  for(let m=1;m<=12;m++){
+    const o=document.createElement('option'); o.value=m; o.textContent=m+"月"; mSel.appendChild(o);
+  }
+  ySel.value = thisYear;
+  mSel.value = now.getMonth()+1;
+
+  // 保存済みキー復元
+  const savedKey = store.get('yt_key');
+  if(savedKey) document.getElementById('yt-key').value = savedKey;
+  const savedCh = store.get('yt_channel');
+  if(savedCh) document.getElementById('yt-channel').value = savedCh;
+
+  document.getElementById('tw-date').value = isoLocalDate(now);
+})();
+
+function isoLocalDate(d){
+  const p = jstParts(d);
+  return `${p.y}-${String(p.mo).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`;
+}
+
+/* ---------- 日本時間(JST)に変換して各パーツを取り出す ---------- */
+function jstParts(date){
+  const fmt = new Intl.DateTimeFormat('ja-JP',{
+    timeZone:'Asia/Tokyo', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', weekday:'short', hour12:false
+  });
+  const parts = {};
+  for(const p of fmt.formatToParts(date)) parts[p.type]=p.value;
+  // weekday → 0..6
+  const wkMap = {"日":0,"月":1,"火":2,"水":3,"木":4,"金":5,"土":6};
+  return {
+    y:+parts.year, mo:+parts.month, d:+parts.day,
+    hh:parts.hour==="24"?"00":parts.hour, mm:parts.minute,
+    dow: wkMap[parts.weekday] ?? 0
+  };
+}
+function fmtDate(p){ return `${p.y}-${String(p.mo).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`; }
+function fmtTime(p){ return `${p.hh}:${p.mm}`; }
+
+/* ===================== タブ切り替え ===================== */
+function switchTop(which){
+  document.getElementById('tab-yt').setAttribute('aria-selected', which==='yt');
+  document.getElementById('tab-tw').setAttribute('aria-selected', which==='tw');
+  document.getElementById('panel-yt').classList.toggle('hide', which!=='yt');
+  document.getElementById('panel-tw').classList.toggle('hide', which!=='tw');
+  if(which==='tw'){ buildNoteFilter(); renderNotes(); }
+}
+
+let currentKind = 'live';
+function switchKind(kind){
+  currentKind = kind;
+  document.querySelectorAll('.subtabs button').forEach(b=>{
+    b.setAttribute('aria-selected', b.dataset.kind===kind);
+  });
+  renderYouTube();
+  const copy = document.getElementById('yt-copy');
+  copy.className = kind;
+}
+
+function toggleKey(){
+  const inp = document.getElementById('yt-key');
+  const btn = inp.parentElement.querySelector('.toggle');
+  if(inp.type==='password'){ inp.type='text'; btn.textContent='隠す'; }
+  else { inp.type='password'; btn.textContent='表示'; }
+}
+
+/* ===================== YouTube 取得 ===================== */
+let ytData = { live:[], video:[] };
+
+async function yapi(path, params, key){
+  const url = new URL('https://www.googleapis.com/youtube/v3/'+path);
+  for(const [k,v] of Object.entries(params)) url.searchParams.set(k,v);
+  url.searchParams.set('key', key);
+  const res = await fetch(url);
+  const json = await res.json();
+  if(!res.ok){
+    const reason = json?.error?.errors?.[0]?.reason || '';
+    const msg = json?.error?.message || res.statusText;
+    const e = new Error(msg); e.reason = reason; throw e;
+  }
+  return json;
+}
+
+async function resolveChannel(input, key){
+  let v = input.trim();
+  // URLから抽出
+  const chIdMatch = v.match(/channel\/(UC[\w-]{20,})/);
+  if(chIdMatch) return chIdMatch[1];
+  const handleUrl = v.match(/youtube\.com\/@([\w.\-]+)/);
+  if(handleUrl) v = '@'+handleUrl[1];
+  const userUrl = v.match(/youtube\.com\/user\/([\w.\-]+)/);
+
+  if(/^UC[\w-]{20,}$/.test(v)) return v;            // 直接チャンネルID
+  if(v.startsWith('@')){
+    const j = await yapi('channels',{part:'id',forHandle:v},key);
+    if(j.items && j.items[0]) return j.items[0].id;
+  }
+  if(userUrl){
+    const j = await yapi('channels',{part:'id',forUsername:userUrl[1]},key);
+    if(j.items && j.items[0]) return j.items[0].id;
+  }
+  // 最後の手段：ハンドルとして試す
+  const j = await yapi('channels',{part:'id',forHandle:(v.startsWith('@')?v:'@'+v)},key);
+  if(j.items && j.items[0]) return j.items[0].id;
+  throw new Error('チャンネルが見つかりませんでした。@ハンドルかチャンネルIDで試してください。');
+}
+
+function setStatus(id, text, cls){
+  const el = document.getElementById(id);
+  el.className = 'status' + (cls?(' '+cls):'');
+  el.innerHTML = text;
+}
+
+async function runYouTube(){
+  const key = document.getElementById('yt-key').value.trim();
+  const chInput = document.getElementById('yt-channel').value.trim();
+  const year = +document.getElementById('yt-year').value;
+  const month = +document.getElementById('yt-month').value;
+  const excludePremiere = document.getElementById('yt-premiere').checked;
+  const goBtn = document.getElementById('yt-go');
+
+  if(!key){ setStatus('yt-status','APIキーを入力してください。','err'); return; }
+  if(!chInput){ setStatus('yt-status','チャンネルを入力してください。','err'); return; }
+
+  store.set('yt_key', key);
+  store.set('yt_channel', chInput);
+
+  goBtn.disabled = true;
+  setStatus('yt-status','<span class="spin"></span>チャンネルを確認中…');
+
+  // 対象月のJST範囲（UTCに換算してフィルタ）
+  // JST = UTC+9 → 月初0:00 JST = 前日15:00 UTC
+  const startUTC = Date.UTC(year, month-1, 1, 0,0,0) - 9*3600*1000;
+  const endUTC   = Date.UTC(year, month,   1, 0,0,0) - 9*3600*1000;
+
+  try{
+    const channelId = await resolveChannel(chInput, key);
+    const uploads = 'UU' + channelId.slice(2); // uploadsプレイリストID
+    setStatus('yt-status','<span class="spin"></span>動画一覧を収集中…');
+
+    const idsInRange = [];
+    let pageToken = '';
+    let pages = 0;
+    let stop = false;
+    while(!stop && pages < 40){
+      const params = { part:'contentDetails', playlistId:uploads, maxResults:50 };
+      if(pageToken) params.pageToken = pageToken;
+      let j;
+      try{ j = await yapi('playlistItems', params, key); }
+      catch(e){
+        if(e.reason==='playlistNotFound'){ throw new Error('このチャンネルの公開アップロードが見つかりませんでした。'); }
+        throw e;
+      }
+      for(const it of (j.items||[])){
+        const t = new Date(it.contentDetails.videoPublishedAt).getTime();
+        if(t >= endUTC) continue;            // 対象月より新しい → スキップ
+        if(t < startUTC){ stop = true; break;} // 対象月より古い → 以降は全部古い
+        idsInRange.push(it.contentDetails.videoId);
+      }
+      pageToken = j.nextPageToken || '';
+      if(!pageToken) break;
+      pages++;
+    }
+
+    ytData = { live:[], video:[] };
+
+    if(idsInRange.length){
+      setStatus('yt-status','<span class="spin"></span>配信/動画の詳細を取得中…（'+idsInRange.length+'件）');
+      for(let i=0;i<idsInRange.length;i+=50){
+        const chunk = idsInRange.slice(i,i+50);
+        const j = await yapi('videos',{part:'snippet,liveStreamingDetails,contentDetails',id:chunk.join(',')},key);
+        for(const v of (j.items||[])){
+          const lsd = v.liveStreamingDetails;
+          const hasLive = !!lsd && (lsd.actualStartTime || lsd.scheduledStartTime);
+          let kind = hasLive ? 'live' : 'video';
+          // プレミア公開の除外：実際の放送時間が短いものは「動画」扱いにする
+          if(kind==='live' && excludePremiere && lsd.actualStartTime){
+            let sec = null;
+            if(lsd.actualEndTime){
+              sec = (new Date(lsd.actualEndTime) - new Date(lsd.actualStartTime))/1000;
+            }else if(v.contentDetails){
+              sec = parseDuration(v.contentDetails.duration);
+            }
+            if(sec!==null && sec < PREMIERE_MAX_SEC) kind = 'video';
+          }
+          const isLiveEntry = (kind==='live');
+          // 配信は実際の開始時刻（なければ予定）、動画は公開時刻
+          const refIso = isLiveEntry
+            ? (lsd.actualStartTime || lsd.scheduledStartTime)
+            : v.snippet.publishedAt;
+          // refが対象月か再確認（配信開始が公開と別月のことがあるため）
+          const refMs = new Date(refIso).getTime();
+          if(refMs < startUTC || refMs >= endUTC) continue;
+          const p = jstParts(new Date(refIso));
+          ytData[kind].push({
+            title: v.snippet.title,
+            videoId: v.id,
+            parts: p,
+            sortKey: refMs,
+            isUpcoming: isLiveEntry && !lsd.actualStartTime
+          });
+        }
+      }
+    }
+
+    ytData.live.sort((a,b)=>a.sortKey-b.sortKey);
+    ytData.video.sort((a,b)=>a.sortKey-b.sortKey);
+
+    document.getElementById('cnt-live').textContent  = ytData.live.length;
+    document.getElementById('cnt-video').textContent = ytData.video.length;
+    document.getElementById('yt-rangelabel').textContent = `${year}年${month}月（日本時間）`;
+    document.getElementById('yt-results').classList.remove('hide');
+    switchKind('live');
+    setStatus('yt-status', `取得完了：配信 ${ytData.live.length}件 / 動画 ${ytData.video.length}件`, 'ok');
+
+  }catch(e){
+    let msg = e.message || '取得に失敗しました。';
+    if(e.reason==='quotaExceeded') msg = '本日のAPIクォータ上限に達しました。明日また試してください。';
+    if(e.reason==='keyInvalid' || e.reason==='badRequest') msg = 'APIキーが無効か、設定（API有効化・制限）を確認してください。';
+    if(e.reason==='forbidden') msg = 'APIキーの制限を確認してください（ローカル利用は制限「なし」推奨）。';
+    setStatus('yt-status', msg, 'err');
+  }finally{
+    goBtn.disabled = false;
+  }
+}
+
+function renderYouTube(){
+  const list = document.getElementById('yt-list');
+  const arr = ytData[currentKind];
+  list.innerHTML = '';
+  if(!arr.length){
+    list.innerHTML = `<li class="empty">この月に${currentKind==='live'?'配信':'動画'}は見つかりませんでした。</li>`;
+    return;
+  }
+  for(const e of arr){
+    const li = document.createElement('li');
+    const dowCls = e.parts.dow===0?'sun':(e.parts.dow===6?'sat':'');
+    const timeCls = currentKind==='live'?'live':'video';
+    li.innerHTML =
+      `<div class="item-top">
+         <span class="date">${fmtDate(e.parts)}</span>
+         <span class="dow ${dowCls}">(${DOW[e.parts.dow]})</span>
+         <span class="time ${timeCls}">${fmtTime(e.parts)}${e.isUpcoming?'〜予定':''}</span>
+       </div>
+       <div class="title">${escapeHtml(e.title)}</div>
+       <div class="meta"><a href="https://www.youtube.com/watch?v=${e.videoId}" target="_blank" rel="noopener">動画を開く</a></div>`;
+    list.appendChild(li);
+  }
+}
+
+function copyYouTube(){
+  const arr = ytData[currentKind];
+  const year = document.getElementById('yt-year').value;
+  const month = document.getElementById('yt-month').value;
+  const head = `【${year}年${month}月 ${currentKind==='live'?'配信':'動画'}一覧（JST）】\n`;
+  const lines = arr.map(e=>{
+    const base = `${fmtDate(e.parts)}(${DOW[e.parts.dow]}) ${fmtTime(e.parts)}${e.isUpcoming?'〜予定':''}`;
+    return `${base}  ${e.title}`;
+  });
+  const text = head + (lines.length?lines.join('\n'):'（なし）');
+  copyText(text, 'yt-copy', currentKind);
+}
+
+/* ===================== Twitter 手動記録 ===================== */
+function loadNotes(){
+  try{ return JSON.parse(store.get('tw_notes')||'[]'); }catch(e){ return []; }
+}
+function saveNotes(arr){ store.set('tw_notes', JSON.stringify(arr)); }
+
+function addNote(){
+  const date = document.getElementById('tw-date').value;
+  const type = document.getElementById('tw-type').value;
+  const text = document.getElementById('tw-text').value.trim();
+  const url  = document.getElementById('tw-url').value.trim();
+  if(!date){ setStatus('tw-status','日付を選んでください。','err'); return; }
+  if(!text){ setStatus('tw-status','内容を入力してください。','err'); return; }
+  const notes = loadNotes();
+  notes.push({ id:Date.now(), date, type, text, url });
+  saveNotes(notes);
+  document.getElementById('tw-text').value='';
+  document.getElementById('tw-url').value='';
+  setStatus('tw-status','記録しました。','ok');
+  buildNoteFilter(); renderNotes();
+}
+
+function deleteNote(id){
+  saveNotes(loadNotes().filter(n=>n.id!==id));
+  buildNoteFilter(); renderNotes();
+}
+
+function dowFromIso(iso){
+  // iso = YYYY-MM-DD（その日のJST曜日）
+  const [y,m,d] = iso.split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,d)).getUTCDay();
+}
+
+function buildNoteFilter(){
+  const sel = document.getElementById('tw-filter');
+  const prev = sel.value;
+  const months = new Set();
+  for(const n of loadNotes()) months.add(n.date.slice(0,7));
+  const sorted = [...months].sort().reverse();
+  sel.innerHTML = '<option value="all">すべて</option>' +
+    sorted.map(m=>`<option value="${m}">${m.replace('-','年')}月</option>`).join('');
+  if([...sel.options].some(o=>o.value===prev)) sel.value = prev;
+}
+
+const TYPE_LABEL = {video:'動画', collab:'コラボ', other:'その他'};
+function renderNotes(){
+  const list = document.getElementById('tw-list');
+  const filter = document.getElementById('tw-filter').value || 'all';
+  let notes = loadNotes();
+  if(filter!=='all') notes = notes.filter(n=>n.date.startsWith(filter));
+  notes.sort((a,b)=> a.date<b.date?-1:(a.date>b.date?1:a.id-b.id));
+  list.innerHTML='';
+  if(!notes.length){
+    list.innerHTML = '<li class="empty">まだ記録がありません。上のフォームから追加できます。</li>';
+    return;
+  }
+  for(const n of notes){
+    const dow = DOW[dowFromIso(n.date)];
+    const li = document.createElement('li');
+    li.innerHTML =
+      `<div class="item-top">
+         <span class="date">${n.date}</span>
+         <span class="dow">(${dow})</span>
+         <span class="pill ${n.type}" style="margin-left:8px;">${TYPE_LABEL[n.type]}</span>
+         <button class="delx" onclick="deleteNote(${n.id})">削除</button>
+       </div>
+       <div class="title">${escapeHtml(n.text)}</div>
+       ${n.url?`<div class="meta"><a href="${escapeAttr(n.url)}" target="_blank" rel="noopener">${escapeHtml(n.url)}</a></div>`:''}`;
+    list.appendChild(li);
+  }
+}
+
+function copyNotes(){
+  const filter = document.getElementById('tw-filter').value || 'all';
+  let notes = loadNotes();
+  if(filter!=='all') notes = notes.filter(n=>n.date.startsWith(filter));
+  notes.sort((a,b)=> a.date<b.date?-1:(a.date>b.date?1:a.id-b.id));
+  const label = filter==='all' ? 'すべて' : filter.replace('-','年')+'月';
+  const head = `【Twitter/X 活動記録：${label}】\n`;
+  const lines = notes.map(n=>{
+    const dow = DOW[dowFromIso(n.date)];
+    return `${n.date}(${dow}) [${TYPE_LABEL[n.type]}] ${n.text}${n.url?'  '+n.url:''}`;
+  });
+  copyText(head + (lines.length?lines.join('\n'):'（なし）'), 'tw-copy', 'note');
+}
+
+/* ===================== 共通：コピー & エスケープ ===================== */
+async function copyText(text, btnId, cls){
+  const btn = document.getElementById(btnId);
+  const orig = btn.textContent;
+  try{
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'コピーしました ✓';
+  }catch(e){
+    // フォールバック
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); btn.textContent='コピーしました ✓'; }
+    catch(_){ btn.textContent='コピーできませんでした'; }
+    document.body.removeChild(ta);
+  }
+  setTimeout(()=>{ btn.textContent = orig; }, 1600);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+</script>
+</body>
+</html>
