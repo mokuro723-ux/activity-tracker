@@ -272,8 +272,16 @@
       <ul class="list" id="ba-history-list"></ul>
     </div>
     <div class="card">
-      <h2>パターン分析</h2>
+      <h2>パターン分析（周年系）</h2>
       <div id="ba-pattern-content" style="font-size:13.5px;line-height:1.8;color:var(--ink);"></div>
+    </div>
+    <div class="card">
+      <h2>通常ブルアカらいぶ 放送履歴</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
+        ※周年・ハーフ周年を除く定期放送。放送日→メンテ日のオフセットパターンを分析。
+      </p>
+      <ul class="list" id="ba-regular-list"></ul>
+      <div id="ba-regular-pattern" style="font-size:13px;line-height:1.8;margin-top:12px;color:var(--ink);"></div>
     </div>
   </section>
 
@@ -652,30 +660,53 @@ function escapeHtml(s){
 }
 function escapeAttr(s){ return escapeHtml(s); }
 /* ===================== ブルアカらいぶ ===================== */
-// type: "live"=らいぶ本番, "anniv"=アニバーサリーデー, "kouyasai"=後夜祭
+// type: "live"=らいぶ本番, "kouyasai"=後夜祭, "mainte"=メンテ・アップデート
 const BA_LIVE_HISTORY = [
-  { label:"1周年",       date:"2022-01-21", time:"19:00", note:"ふぁーすとあにばSP！",                              type:"live" },
-  { label:"1周年後夜祭",  date:"2022-01-22", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"1.5周年",     date:"2022-07-16", time:"19:00", note:"夏のブルアカらいぶ！1.5周年記念すぺしゃる！",       type:"live" },
-  { label:"1.5周年後夜祭",date:"2022-07-17", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"2周年",       date:"2023-01-22", time:"19:00", note:"せかんどあにばSP！（ブルアカふぇす会場）",          type:"live" },
-  { label:"2周年後夜祭",  date:"2023-01-23", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"2.5周年",     date:"2023-07-23", time:"17:00", note:"夏のブルアカらいぶ！あっちっちSP",                  type:"live" },
-  { label:"2.5周年後夜祭",date:"2023-07-24", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"3周年",       date:"2024-01-21", time:"10:00", note:"さーどあにばSP！（ふぇす Day2）",                   type:"live" },
-  { label:"3周年後夜祭",  date:"2024-01-22", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"3.5周年",     date:"2024-07-21", time:"10:00", note:"夏のブルアカらいぶ！はっぴ～さま～しょ～たいむ！SP",type:"live" },
-  { label:"3.5周年後夜祭",date:"2024-07-22", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"4周年",       date:"2025-01-18", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day2）",                 type:"live" },
-  { label:"4周年後夜祭",  date:"2025-01-19", time:null,    note:"らいぶ翌日（ふぇす Day3）",                        type:"kouyasai" },
-  { label:"4.5周年",     date:"2025-07-19", time:"18:30", note:"夏のブルアカらいぶ！さんしゃいんさまーぱーてぃー！SP",type:"live" },
-  { label:"4.5周年後夜祭",date:"2025-07-20", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
-  { label:"5周年 Day1",  date:"2026-01-17", time:"10:00", note:"ふぃふすあにばSP！ Day1（ふぇす）",                 type:"live" },
-  { label:"5周年 Day2",  date:"2026-01-18", time:"10:00", note:"ふぃふすあにばSP！ Day2（ふぇす）",                 type:"live" },
-  { label:"5周年後夜祭",  date:"2026-01-19", time:null,    note:"らいぶ翌日",                                       type:"kouyasai" },
+  { label:"1周年",        date:"2022-01-21", time:"19:00", note:"ふぁーすとあにばSP！",                               type:"live" },
+  { label:"1周年後夜祭",   date:"2022-01-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"1周年メンテ",   date:"2022-01-26", time:"11:00", note:"らいぶから5日後（水）",                             type:"mainte" },
+  { label:"1.5周年",      date:"2022-07-16", time:"19:00", note:"夏のブルアカらいぶ！1.5周年記念すぺしゃる！",        type:"live" },
+  { label:"1.5周年後夜祭", date:"2022-07-17", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"1.5周年メンテ", date:"2022-07-20", time:"11:00", note:"らいぶから4日後（水）",                             type:"mainte" },
+  { label:"2周年",        date:"2023-01-22", time:"19:00", note:"せかんどあにばSP！（ブルアカふぇす会場）",           type:"live" },
+  { label:"2周年後夜祭",   date:"2023-01-23", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"2周年メンテ",   date:"2023-01-24", time:"11:00", note:"らいぶから2日後（火）",                             type:"mainte" },
+  { label:"2.5周年",      date:"2023-07-23", time:"17:00", note:"夏のブルアカらいぶ！あっちっちSP",                   type:"live" },
+  { label:"2.5周年後夜祭", date:"2023-07-24", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"2.5周年メンテ", date:"2023-07-26", time:"11:00", note:"らいぶから3日後（水）",                             type:"mainte" },
+  { label:"3周年",        date:"2024-01-21", time:"10:00", note:"さーどあにばSP！（ふぇす Day2）",                    type:"live" },
+  { label:"3周年後夜祭",   date:"2024-01-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"3周年メンテ",   date:"2024-01-22", time:"11:00", note:"らいぶから1日後（月）",                             type:"mainte" },
+  { label:"3.5周年",      date:"2024-07-21", time:"10:00", note:"夏のブルアカらいぶ！はっぴ～さま～しょ～たいむ！SP", type:"live" },
+  { label:"3.5周年後夜祭", date:"2024-07-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"3.5周年メンテ", date:"2024-07-22", time:"11:00", note:"らいぶから1日後（月）",                             type:"mainte" },
+  { label:"4周年",        date:"2025-01-18", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day2）",                  type:"live" },
+  { label:"4周年後夜祭",   date:"2025-01-19", time:null,    note:"らいぶ翌日（ふぇす Day3）",                         type:"kouyasai" },
+  { label:"4周年メンテ",   date:"2025-01-20", time:"11:00", note:"らいぶから2日後（月）",                             type:"mainte" },
+  { label:"4.5周年",      date:"2025-07-19", time:"18:30", note:"夏のブルアカらいぶ！さんしゃいんさまーぱーてぃー！SP",type:"live" },
+  { label:"4.5周年後夜祭", date:"2025-07-20", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"4.5周年メンテ", date:"2025-07-22", time:"11:00", note:"らいぶから3日後（火）",                             type:"mainte" },
+  { label:"5周年 Day1",   date:"2026-01-17", time:"10:00", note:"ふぃふすあにばSP！ Day1（ふぇす）",                  type:"live" },
+  { label:"5周年 Day2",   date:"2026-01-18", time:"10:00", note:"ふぃふすあにばSP！ Day2（ふぇす）",                  type:"live" },
+  { label:"5周年後夜祭",   date:"2026-01-19", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"5周年メンテ",   date:"2026-01-20", time:"11:00", note:"らいぶから2日後（火）",                             type:"mainte" },
 ];
 
-// 月の第N週・曜日を計算
+// 通常ブルアカらいぶ（周年・ハーフ周年を除く定期放送）
+// type: "regular"=通常放送, "regular_mainte"=通常放送後メンテ
+const BA_REGULAR_HISTORY = [
+  { label:"2024/03/24 春SP",      liveDate:"2024-03-24", mainteDate:"2024-03-25", mainteDow:"月", offset:1,  liveTime:"19:00" },
+  { label:"2024/04/20 京都旅行SP", liveDate:"2024-04-20", mainteDate:"2024-04-22", mainteDow:"月", offset:2,  liveTime:"17:00" },
+  { label:"2024/06/22 夏直前SP",   liveDate:"2024-06-22", mainteDate:"2024-06-24", mainteDow:"月", offset:2,  liveTime:"19:00" },
+  { label:"2024/10/19 秋SP",       liveDate:"2024-10-19", mainteDate:"2024-10-21", mainteDow:"月", offset:2,  liveTime:"19:00" },
+  { label:"2024/12/22 クリスマス前SP", liveDate:"2024-12-22", mainteDate:"2024-12-24", mainteDow:"火", offset:2,  liveTime:"19:00" },
+  { label:"2025/04/20 春はにかむSP", liveDate:"2025-04-20", mainteDate:"2025-04-22", mainteDow:"火", offset:2,  liveTime:"19:00" },
+  { label:"2025/08/17 みに♪りとらい", liveDate:"2025-08-17", mainteDate:"2025-08-19", mainteDow:"火", offset:2,  liveTime:"19:00" },
+  { label:"2025/09/20 みに♪京都出張", liveDate:"2025-09-20", mainteDate:"2025-09-22", mainteDow:"月", offset:2,  liveTime:"19:00" },
+  { label:"2025/10/18 秋からーずSP",  liveDate:"2025-10-18", mainteDate:"2025-10-20", mainteDow:"月", offset:2,  liveTime:"19:00" },
+  { label:"2025/12/21 冬SP",         liveDate:"2025-12-21", mainteDate:"2025-12-23", mainteDow:"火", offset:2,  liveTime:"19:00" },
+  { label:"2026/04/19 春ふぃーばー",  liveDate:"2026-04-19", mainteDate:"2026-04-21", mainteDow:"火", offset:2,  liveTime:"19:00" },
+];
 function weekOfMonth(dateStr){
   const d = new Date(dateStr + "T00:00:00");
   const day = d.getDate();
@@ -699,10 +730,12 @@ function renderBluearchiveLive(){
     const isLive     = item.type === 'live';
     const isKouyasai = item.type === 'kouyasai';
     const isAnniv    = item.type === 'anniv';
+    const isMainte   = item.type === 'mainte';
 
     // 行スタイル
-    const rowBg = isAnniv ? 'background:#fff8e1;border-radius:8px;padding:8px 10px;margin:-4px -4px;'
+    const rowBg = isAnniv    ? 'background:#fff8e1;border-radius:8px;padding:8px 10px;margin:-4px -4px;'
                 : isKouyasai ? 'background:#f0f4ff;border-radius:8px;padding:8px 10px;margin:-4px -4px;'
+                : isMainte   ? 'background:#f0fff4;border-radius:8px;padding:8px 10px;margin:-4px -4px;'
                 : '';
 
     // タイムカラム
@@ -710,7 +743,9 @@ function renderBluearchiveLive(){
       ? `<span class="time live" style="margin-left:auto;">${item.time}〜</span>`
       : isKouyasai
         ? `<span style="margin-left:auto;font-size:13px;color:var(--note);font-weight:700;">🌙 後夜祭</span>`
-        : `<span style="margin-left:auto;font-size:13px;color:#c77b1e;font-weight:700;">🎂 記念日</span>`;
+        : isMainte
+          ? `<span style="margin-left:auto;font-size:13px;color:#1a7f4b;font-weight:700;">🔧 メンテ ${item.time}〜</span>`
+          : `<span style="margin-left:auto;font-size:13px;color:#c77b1e;font-weight:700;">🎂 記念日</span>`;
 
     // 週表示は放送日のみ
     const weekHtml = isLive
@@ -734,7 +769,56 @@ function renderBluearchiveLive(){
 
   // パターン分析
   analyzeAndRenderPattern();
+  renderRegularHistory();
   renderNextMonthPrediction();
+}
+
+function renderRegularHistory(){
+  const ul = document.getElementById('ba-regular-list');
+  if(ul.children.length > 0) return;
+  const DOW_JP = ["日","月","火","水","木","金","土"];
+
+  BA_REGULAR_HISTORY.forEach(item => {
+    const ld = new Date(item.liveDate+"T00:00:00");
+    const md = new Date(item.mainteDate+"T00:00:00");
+    const lyyyy=ld.getFullYear(), lmm=ld.getMonth()+1, ldd=ld.getDate();
+    const myyyy=md.getFullYear(), mmm=md.getMonth()+1, mdd=md.getDate();
+    const ldow = DOW_JP[ld.getDay()];
+    const mdow = DOW_JP[md.getDay()];
+    const ldowCls = ld.getDay()===0?'sun':(ld.getDay()===6?'sat':'');
+
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="item-top">
+        <span class="date">${lyyyy}-${String(lmm).padStart(2,'0')}-${String(ldd).padStart(2,'0')}</span>
+        <span class="dow ${ldowCls}">(${ldow})</span>
+        <span class="time live" style="margin-left:auto;">${item.liveTime}〜</span>
+      </div>
+      <div class="title" style="font-size:14px;">${item.label}</div>
+      <div style="background:#f0fff4;border-radius:6px;padding:5px 8px;margin-top:4px;font-size:12.5px;color:#1a7f4b;">
+        🔧 メンテ：${myyyy}-${String(mmm).padStart(2,'0')}-${String(mdd).padStart(2,'0')}（${mdow}）11:00〜
+        <span style="color:var(--muted);margin-left:4px;">らいぶから+${item.offset}日</span>
+      </div>`;
+    ul.appendChild(li);
+  });
+
+  // オフセット・メンテ曜日の集計
+  const offsetCounts = {};
+  const dowCounts = {};
+  BA_REGULAR_HISTORY.forEach(item => {
+    const md = new Date(item.mainteDate+"T00:00:00");
+    const dow = md.getDay();
+    offsetCounts[item.offset] = (offsetCounts[item.offset]||0) + 1;
+    dowCounts[dow] = (dowCounts[dow]||0) + 1;
+  });
+  const topOffset = Object.entries(offsetCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topDow    = Object.entries(dowCounts).sort((a,b)=>b[1]-a[1])[0];
+  const DOW_JP2   = ["日","月","火","水","木","金","土"];
+
+  document.getElementById('ba-regular-pattern').innerHTML =
+    `<b>通常らいぶ→メンテパターン</b>：放送から平均 <b>+${topOffset[0]}日後</b>（${topOffset[1]}/${BA_REGULAR_HISTORY.length}回）、
+    最多曜日 <b>${DOW_JP2[+topDow[0]]}曜</b>（${topDow[1]}/${BA_REGULAR_HISTORY.length}回）の11:00〜
+    <br><span style="color:var(--muted);font-size:12px;">※来月が通常らいぶ月（1月・7月以外）の場合、このパターンで予測します。</span>`;
 }
 
 function analyzeAndRenderPattern(){
@@ -777,11 +861,65 @@ function renderNextMonthPrediction(){
   const isAnnivMonth = (nextMonth === 1 || nextMonth === 7);
 
   if(!isAnnivMonth){
+    const DOW_JP = ["日","月","火","水","木","金","土"];
+    // 通常らいぶのオフセット・曜日集計
+    const offsetCounts = {};
+    const dowCounts = {};
+    BA_REGULAR_HISTORY.forEach(item => {
+      const md = new Date(item.mainteDate+"T00:00:00");
+      offsetCounts[item.offset] = (offsetCounts[item.offset]||0)+1;
+      dowCounts[md.getDay()] = (dowCounts[md.getDay()]||0)+1;
+    });
+    const topOffset = +Object.entries(offsetCounts).sort((a,b)=>b[1]-a[1])[0][0];
+    const topDow    = +Object.entries(dowCounts).sort((a,b)=>b[1]-a[1])[0][0];
+
+    // 通常らいぶ予想：来月の土日（第3週を優先）を候補に
+    function getNthWeekday(y,m1,n,dow){
+      let offset=(dow-new Date(y,m1-1,1).getDay()+7)%7;
+      let d=1+offset+(n-1)*7;
+      const last=new Date(y,m1,0).getDate();
+      return d<=last?d:null;
+    }
+    // 土・日どちらも候補
+    const liveCandidates=[];
+    [0,6].forEach(dow=>{
+      [3,2,4].forEach(wn=>{
+        const dd=getNthWeekday(nextYear,nextMonth,wn,dow);
+        if(dd!==null) liveCandidates.push({dd,dow,wn});
+      });
+    });
+    liveCandidates.sort((a,b)=>a.dd-b.dd);
+    const topLive = liveCandidates[0];
+
+    // メンテ予想：放送日+topOffset、最頻曜日に調整
+    let mainteDay = topLive ? topLive.dd + topOffset : null;
+    if(mainteDay){
+      const last=new Date(nextYear,nextMonth,0).getDate();
+      if(mainteDay>last) mainteDay=last;
+      // 最頻曜日±1調整
+      const candidates=[mainteDay-1,mainteDay,mainteDay+1].filter(x=>x>=1&&x<=last);
+      mainteDay=candidates.sort((a,b)=>Math.abs(new Date(nextYear,nextMonth-1,a).getDay()-topDow)-Math.abs(new Date(nextYear,nextMonth-1,b).getDay()-topDow))[0];
+    }
+
     el.innerHTML =
-      `<div style="color:var(--muted);padding:10px 0;">
-        <b>${nextYear}年${nextMonth}月</b>は周年・半周年の放送予定月ではありません。<br>
+      `<div style="color:var(--muted);padding:6px 0 10px;">
+        <b>${nextYear}年${nextMonth}月</b>は周年・半周年の放送月ではありません。<br>
         ブルアカらいぶ（周年放送）は <b>例年1月・7月</b> に開催されます。
-      </div>`;
+      </div>`+
+      (topLive ? `
+      <div style="font-weight:700;margin-bottom:8px;">📅 通常らいぶ＋メンテ予想</div>
+      <div style="background:var(--ink);color:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+        <div style="font-size:16px;font-weight:700;">◉ らいぶ本命日</div>
+        <div style="font-size:15px;margin-top:3px;">${nextYear}年${nextMonth}月${topLive.dd}日（${DOW_JP[topLive.dow]}）第${topLive.wn}週 19:00〜（予想）</div>
+      </div>
+      <div style="background:#f0fff4;border-radius:10px;padding:11px 14px;margin-bottom:8px;border:1px solid #9be6b8;">
+        <div style="font-size:14px;font-weight:700;color:#1a7f4b;">🔧 メンテ予想</div>
+        <div style="font-size:14px;margin-top:3px;">${nextYear}年${nextMonth}月${mainteDay}日（${DOW_JP[new Date(nextYear,nextMonth-1,mainteDay).getDay()]}）11:00〜（予想）</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">らいぶから+${mainteDay-topLive.dd}日 ／ 過去最多 +${topOffset}日・${DOW_JP[topDow]}曜</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6;">
+        ※通常らいぶ${BA_REGULAR_HISTORY.length}回の実績パターンから算出。公式発表前の予測です。
+      </div>` : '');
     return;
   }
 
@@ -870,12 +1008,13 @@ function renderNextMonthPrediction(){
     </div>`;
   });
 
-  // 本命日の翌日＝後夜祭予想
+  // 本命日の翌日＝後夜祭予想、メンテ予想
   if(candidates.length > 0){
     const mainDay = candidates[0].day;
-    const kouyasaiDay = mainDay + 1;
     const lastDay = new Date(nextYear, nextMonth, 0).getDate();
 
+    // 後夜祭（らいぶ翌日）
+    const kouyasaiDay = mainDay + 1;
     const kouyasaiDateStr = kouyasaiDay <= lastDay
       ? `${nextYear}年${nextMonth}月${kouyasaiDay}日`
       : `${nextYear}年${nextMonth+1}月1日`;
@@ -883,11 +1022,70 @@ function renderNextMonthPrediction(){
       ? DOW_JP[new Date(nextYear, nextMonth-1, kouyasaiDay).getDay()]
       : DOW_JP[new Date(nextYear, nextMonth, 1).getDay()];
 
-    html += `<div style="margin-top:14px;font-weight:700;margin-bottom:8px;">🌙 後夜祭 予想</div>`;
+    // メンテ予想：過去のらいぶからの日数オフセットを集計
+    const mainteArr = BA_LIVE_HISTORY.filter(x => x.type === 'mainte');
+    const liveArr   = BA_LIVE_HISTORY.filter(x => x.type === 'live' && (isSummer
+      ? new Date(x.date+"T00:00:00").getMonth() === 6
+      : new Date(x.date+"T00:00:00").getMonth() === 0));
+    // 各周年のらいぶ最終日→メンテ日までのオフセット
+    const offsets = [];
+    const mainteDows = {};
+    liveArr.forEach(lv => {
+      // 同ラベルプレフィックスのメンテを探す
+      const prefix = lv.label.replace(/ Day\d+/,'');
+      const m = mainteArr.find(x => x.label.startsWith(prefix));
+      if(m){
+        const ld = new Date(lv.date+"T00:00:00");
+        const md = new Date(m.date+"T00:00:00");
+        const diff = Math.round((md-ld)/(1000*60*60*24));
+        offsets.push(diff);
+        const dow = md.getDay();
+        mainteDows[dow] = (mainteDows[dow]||0) + 1;
+      }
+    });
+    const avgOffset = offsets.length ? Math.round(offsets.reduce((a,b)=>a+b,0)/offsets.length) : 2;
+    const topMainteDow = Object.entries(mainteDows).sort((a,b)=>b[1]-a[1])[0];
+
+    // 予想メンテ日：本命日+avgOffset、ただし最頻曜日に合わせて±1で調整
+    function predictMainteDay(baseDay, avgOff, preferDow, year, month){
+      let d = baseDay + avgOff;
+      const last = new Date(year, month, 0).getDate();
+      if(d > last) d = last;
+      // 最頻曜日に±1で近づける
+      const dobj = new Date(year, month-1, d);
+      const dow = dobj.getDay();
+      if(preferDow !== null && dow !== +preferDow){
+        const candidates = [d-1, d, d+1].filter(x=>x>=1&&x<=last);
+        const best = candidates.sort((a,b)=>{
+          const da = Math.abs(new Date(year,month-1,a).getDay() - +preferDow);
+          const db = Math.abs(new Date(year,month-1,b).getDay() - +preferDow);
+          return da - db;
+        })[0];
+        d = best;
+      }
+      return d;
+    }
+
+    const prefDow = topMainteDow ? topMainteDow[0] : null;
+    const mainteDay = predictMainteDay(mainDay, avgOffset, prefDow, nextYear, nextMonth);
+    const mainteDowStr = DOW_JP[new Date(nextYear, nextMonth-1, mainteDay).getDay()];
+    const mainteOffsetStr = mainteDay - mainDay;
+
+    html += `<div style="margin-top:14px;font-weight:700;margin-bottom:8px;">🌙 後夜祭・🔧 メンテ 予想</div>`;
+
     html += `<div style="background:#f0f4ff;border-radius:10px;padding:11px 14px;margin-bottom:8px;border:1px solid #c8d4f5;">
       <div style="font-size:14px;font-weight:700;color:var(--note);">🌙 後夜祭（らいぶ翌日）</div>
       <div style="font-size:14px;margin-top:3px;">${kouyasaiDateStr}（${kouyasaiDow}）</div>
       <div style="font-size:12px;color:var(--muted);margin-top:2px;">本命放送日の翌日</div>
+    </div>`;
+
+    html += `<div style="background:#f0fff4;border-radius:10px;padding:11px 14px;margin-bottom:8px;border:1px solid #9be6b8;">
+      <div style="font-size:14px;font-weight:700;color:#1a7f4b;">🔧 ゲーム内メンテ・アップデート（予想）</div>
+      <div style="font-size:14px;margin-top:3px;">${nextYear}年${nextMonth}月${mainteDay}日（${mainteDowStr}）11:00〜（予想）</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px;">
+        本命放送日から${mainteOffsetStr}日後 ／
+        過去平均 ${avgOffset}日後・最多曜日 ${prefDow !== null ? DOW_JP[+prefDow]+'曜' : '?'}
+      </div>
     </div>`;
   }
 
