@@ -89,6 +89,7 @@ def parse_live_page(url, html):
         "last_live_date": None,
         "live_time": "19:00",
         "mainte_date": None,
+        "mainte2_date": None,   # 2回目大型メンテ
         "label": "",
         "is_anniv": False,
     }
@@ -156,6 +157,39 @@ def parse_live_page(url, html):
     if not result["mainte_date"]:
         result["mainte_date"] = estimate_mainte(last_ld, result["is_anniv"])
 
+    # ── 2回目大型メンテ日の抽出（周年系のみ） ──
+    # 「エリア追加」「任務XX」「2/3」「8/6」のような記述を探す
+    if result["is_anniv"]:
+        m1d = datetime.date.fromisoformat(result["mainte_date"])
+        # 「2/3(月)メンテ」「8/6(水)メンテ」等、1回目メンテより後の日付
+        mainte2_patterns = [
+            r'(\d{4})/(\d{1,2})/(\d{1,2})[（(][^)）]*[）)]\s*(?:11:00\s*)?メンテ',
+            r'(\d{1,2})月(\d{1,2})日[（(][^)）]*[）)]\s*(?:11:00\s*)?メンテ後',
+            r'(\d{1,2})/(\d{1,2})[（(][^)）]*[）)]\s*(?:11:00\s*)?メンテ後',
+        ]
+        for pat in mainte2_patterns:
+            for mm in re.finditer(pat, html):
+                groups = mm.groups()
+                try:
+                    if len(groups) == 3:
+                        md2 = datetime.date(int(groups[0]), int(groups[1]), int(groups[2]))
+                    else:
+                        md2 = datetime.date(ld.year, int(groups[0]), int(groups[1]))
+                        if md2 < ld:
+                            md2 = datetime.date(ld.year + 1, int(groups[0]), int(groups[1]))
+                    # 1回目メンテより後かつ30日以内
+                    if m1d < md2 <= m1d + datetime.timedelta(days=30):
+                        result["mainte2_date"] = fmt(md2)
+                        break
+                except ValueError:
+                    continue
+            if result["mainte2_date"]:
+                break
+
+        # mainte2が取れなかった場合は過去パターン（平均+14日）で推定
+        if not result["mainte2_date"]:
+            result["mainte2_date"] = estimate_mainte2(m1d)
+
     # ── ラベル ──
     title_text = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.S)
     if title_text:
@@ -167,6 +201,18 @@ def parse_live_page(url, html):
         result["label"] = f"{ld.year}/{ld.month:02d}/{ld.day:02d} らいぶ"
 
     return result
+
+def estimate_mainte2(mainte1_date):
+    """
+    2回目大型メンテを推定。過去実績は+14日・+15日（平均約14日）、月〜水曜優先。
+    """
+    base = mainte1_date + datetime.timedelta(days=14)
+    for offset in [0, 1, -1, 2, -2]:
+        d = base + datetime.timedelta(days=offset)
+        dow = weekday_to_dow(d)
+        if dow in (1, 2, 3):  # 月・火・水
+            return fmt(d)
+    return fmt(base)
 
 def estimate_mainte(last_live_date, is_anniv):
     """
@@ -247,10 +293,20 @@ def insert_anniv_entry(html, item):
         f'  {{ label:"{label}後夜祭", date:"{fmt(kouyasai)}", time:null, note:"らいぶ最終日翌日", type:"kouyasai" }},'
     )
 
-    # メンテ
+    # メンテ（1回目）
     lines.append(
         f'  {{ label:"{label}メンテ", date:"{item["mainte_date"]}", time:"11:00", note:"らいぶから{offset}日後（{dow_m}）", type:"mainte" }},'
     )
+
+    # 大型メンテ（2回目）- 周年系のみ
+    if item.get("mainte2_date"):
+        m1d = datetime.date.fromisoformat(item["mainte_date"])
+        m2d = datetime.date.fromisoformat(item["mainte2_date"])
+        offset2 = (m2d - m1d).days
+        dow_m2  = dow_jp2(m2d)
+        lines.append(
+            f'  {{ label:"{label}大型メンテ", date:"{item["mainte2_date"]}", time:"11:00", note:"メンテから{offset2}日後（{dow_m2}）・大型アップデート", type:"mainte2" }},'
+        )
 
     new_block = "\n".join(lines) + "\n"
 
@@ -286,6 +342,41 @@ def insert_regular_entry(html, item):
     )
     return new_html
 
+def insert_regular_mainte(html, new_dates):
+    """
+    BA_REGULAR_MAINTE に新しいメンテ日を追記。
+    重複除去・ソートして挿入。
+    """
+    block_m = re.search(r'(const BA_REGULAR_MAINTE\s*=\s*\[)(.*?)(\];)', html, re.S)
+    if not block_m:
+        return html
+
+    existing = set(re.findall(r'"(\d{4}-\d{2}-\d{2})"', block_m.group(2)))
+    to_add = [d for d in new_dates if d not in existing]
+    if not to_add:
+        return html
+
+    all_dates = sorted(existing | set(to_add))
+    # 8個ずつ改行
+    lines = []
+    for i in range(0, len(all_dates), 8):
+        chunk = all_dates[i:i+8]
+        lines.append('  ' + ','.join(f'"{d}"' for d in chunk) + ',')
+    new_block = '\n' + '\n'.join(lines) + '\n'
+
+    return re.sub(
+        r'(const BA_REGULAR_MAINTE\s*=\s*\[)(.*?)(\];)',
+        lambda m: m.group(1) + new_block + m.group(3),
+        html, flags=re.S, count=1
+    )
+
+def extract_regular_mainte_dates(html):
+    """BA_REGULAR_MAINTE から既存の日付セットを返す。"""
+    block_m = re.search(r'const BA_REGULAR_MAINTE\s*=\s*\[(.*?)\];', html, re.S)
+    if not block_m:
+        return set()
+    return set(re.findall(r'"(\d{4}-\d{2}-\d{2})"', block_m.group(1)))
+
 # ────────────────────────────────────────────────
 # メイン処理
 # ────────────────────────────────────────────────
@@ -301,8 +392,10 @@ def main():
 
     existing_anniv   = extract_existing_dates(html, "BA_LIVE_HISTORY")
     existing_regular = extract_existing_dates(html, "BA_REGULAR_HISTORY")
+    existing_mainte  = extract_regular_mainte_dates(html)
     print(f"既存周年エントリ: {len(existing_anniv)}件")
     print(f"既存通常エントリ: {len(existing_regular)}件")
+    print(f"既存定期メンテ:   {len(existing_mainte)}件")
 
     print(f"一覧ページ取得: {LIST_URL}")
     list_html = fetch(LIST_URL)
@@ -310,10 +403,30 @@ def main():
         print("ERROR: 一覧ページ取得失敗", file=sys.stderr)
         sys.exit(1)
 
+    # ── 定期メンテ日の収集（game8のメンテ情報ページ） ──
+    added = 0
+    MAINTE_URL = "https://game8.jp/blue-archive/650323"
+    print(f"定期メンテページ取得: {MAINTE_URL}")
+    mainte_html = fetch(MAINTE_URL)
+    new_mainte_dates = set()
+    if mainte_html:
+        # 「YYYY/M/D」「YYYY年M月D日」形式のメンテ日を全収集
+        for m in re.finditer(r'(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?[（(][^)）]*[）)]?\s*(?:11:00|メンテ)', mainte_html):
+            try:
+                d = datetime.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                if d >= datetime.date(2024, 1, 1) and d not in existing_mainte:
+                    new_mainte_dates.add(fmt(d))
+            except ValueError:
+                pass
+        if new_mainte_dates:
+            print(f"  新規定期メンテ: {sorted(new_mainte_dates)}")
+            html = insert_regular_mainte(html, new_mainte_dates)
+            existing_mainte |= new_mainte_dates
+            added += 1 if new_mainte_dates else 0
+
     live_urls = collect_live_urls(list_html)
     print(f"個別ページURL: {len(live_urls)}件")
 
-    added = 0
     for url in live_urls[:30]:
         time.sleep(1)
         page_html = fetch(url)
@@ -331,7 +444,8 @@ def main():
 
         if item["is_anniv"]:
             if ld not in existing_anniv:
-                print(f"  → 新規追加（周年）: {ld}{multi}、後夜祭:{item['last_live_date']}翌日、メンテ:{item['mainte_date']}")
+                m2 = item.get("mainte2_date","なし")
+                print(f"  → 新規追加（周年）: {ld}{multi}、後夜祭:{item['last_live_date']}翌日、メンテ:{item['mainte_date']}、大型メンテ:{m2}")
                 html = insert_anniv_entry(html, item)
                 existing_anniv.add(ld)
                 added += 1
