@@ -291,7 +291,8 @@
       <div class="card">
         <h2>周年・ハーフアニバーサリー 放送履歴</h2>
         <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
-          🔴 らいぶ　🌙 後夜祭　🔧 1回目メンテ　⚡ 2回目大型メンテ
+          🔴 らいぶ　🌙 後夜祭　🔧 1回目メンテ　⚡ 2回目大型メンテ<br>
+          ※予測（来月予報）には直近2年分のみ使用。それ以前は参考表示です。
         </p>
         <ul class="list" id="ba-history-list"></ul>
       </div>
@@ -306,7 +307,8 @@
       <div class="card">
         <h2>通常ブルアカらいぶ 放送履歴</h2>
         <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
-          ※周年・ハーフを除く定期放送。放送日→メンテのパターンを分析。
+          ※周年・ハーフを除く定期放送。放送日→メンテのパターンを分析。<br>
+          予測には直近1年分を優先使用。それ以前は参考表示です。
         </p>
         <ul class="list" id="ba-regular-list"></ul>
         <div id="ba-regular-pattern" style="font-size:13px;line-height:1.8;margin-top:12px;color:var(--ink);"></div>
@@ -908,10 +910,10 @@ function renderBAHistoryAnniv(){
   const avgM2 = m2Offsets.length ? Math.round(m2Offsets.reduce((a,b)=>a+b)/m2Offsets.length) : 14;
 
   document.getElementById('ba-pattern-content').innerHTML =
-    summarize(janLive,'周年（1月）') + '<br>' +
-    summarize(julLive,'.5周年（7月）') + '<br>' +
+    summarize(janLive,'周年（1月・全期間参考）') + '<br>' +
+    summarize(julLive,'.5周年（7月・全期間参考）') + '<br>' +
     `<b>大型メンテ</b>：1回目メンテから平均 <b>+${avgM2}日後</b>（${m2.length}回実績）` + '<br>' +
-    `<span style="font-size:12px;color:var(--muted);">※第N週=その月の1日から数えて何番目の週か</span>`;
+    `<span style="font-size:12px;color:var(--muted);">※第N週=その月の1日から数えて何番目の週か。実際の予測（来月予報）は直近2年分のデータを優先して算出します。</span>`;
 }
 
 // ─── 通常らいぶ 履歴 ────────────────────────────────────────
@@ -954,8 +956,8 @@ function renderBAHistoryRegular(){
   const avgOff = Math.round(offsets.reduce((a,b)=>a+b)/offsets.length);
 
   document.getElementById('ba-regular-pattern').innerHTML =
-    `<b>通常らいぶ→メンテ</b>：放送から平均 <b>+${avgOff}日後</b>、最多曜日 <b>${DOW_JP[+topDow[0]]}曜</b>（${topDow[1]}/${BA_REGULAR_HISTORY.length}回）11:00〜<br>
-    <span style="font-size:12px;color:var(--muted);">※来月が通常らいぶ月（1月・7月以外）の場合、このパターンで予測します。</span>`;
+    `<b>通常らいぶ→メンテ（全${BA_REGULAR_HISTORY.length}件・参考値）</b>：放送から平均 <b>+${avgOff}日後</b>、最多曜日 <b>${DOW_JP[+topDow[0]]}曜</b>（${topDow[1]}/${BA_REGULAR_HISTORY.length}回）11:00〜<br>
+    <span style="font-size:12px;color:var(--muted);">※実際の予測（来月予報）は直近1年分のデータを優先して算出します。</span>`;
 }
 
 // ─── 来月予報 ────────────────────────────────────────────────
@@ -974,12 +976,19 @@ function renderBANextMonth(){
 
   if(isAnniv){
     // ── 周年系 ──
-    const targetLive = BA_LIVE_HISTORY.filter(x=>{
+    // 予測は直近の傾向を重視するため、集計対象を「直近2年分」に限定する
+    // （1〜2.5周年は当時の運営体制・イベント設計が現在と異なる可能性が高く、
+    //   古すぎるデータを混ぜると直近の傾向が薄まってしまうため）
+    // ただし該当件数が2件未満だと同点が生じやすく不安定になるため、
+    // その場合は直近3件を確保するフォールバックを設ける
+    const RECENT_YEARS_CUTOFF = new Date(now.getFullYear()-2, now.getMonth(), now.getDate());
+    const sameMonthAll = BA_LIVE_HISTORY.filter(x=>{
       if(x.type!=='live') return false;
-      return isSummer
-        ? new Date(x.date+"T00:00:00").getMonth()===6
-        : new Date(x.date+"T00:00:00").getMonth()===0;
-    });
+      const d = new Date(x.date+"T00:00:00");
+      return isSummer ? d.getMonth()===6 : d.getMonth()===0;
+    }).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const recentOnly = sameMonthAll.filter(x=>new Date(x.date+"T00:00:00") >= RECENT_YEARS_CUTOFF);
+    const targetLive = recentOnly.length >= 3 ? recentOnly : sameMonthAll.slice(-3);
 
     // 週・曜日・時刻の集計
     function counts(arr,fn){const c={};arr.forEach(x=>{const k=fn(x);c[k]=(c[k]||0)+1;});return c;}
@@ -1021,8 +1030,13 @@ function renderBANextMonth(){
       const mainDay = candidates[0].day;
       const last = new Date(nextYear,nextMonth,0).getDate();
 
-      // メンテ実績集計
-      const m1s = BA_LIVE_HISTORY.filter(x=>x.type==='mainte'&&(isSummer?new Date(x.date+"T00:00:00").getMonth()===6:new Date(x.date+"T00:00:00").getMonth()===0));
+      // メンテ実績集計（直近2年分のみ・古いデータは参考程度に留める）
+      const m1s = BA_LIVE_HISTORY.filter(x=>{
+        if(x.type!=='mainte') return false;
+        const d = new Date(x.date+"T00:00:00");
+        if(d < RECENT_YEARS_CUTOFF) return false;
+        return isSummer ? d.getMonth()===6 : d.getMonth()===0;
+      });
       const m1Offsets = m1s.map(m=>{
         const live = BA_LIVE_HISTORY.filter(x=>x.type==='live'&&x.label.startsWith(m.label.replace('メンテ',''))).pop();
         return live ? (new Date(m.date+"T00:00:00")-new Date(live.date+"T00:00:00"))/86400000 : 2;
@@ -1072,9 +1086,13 @@ function renderBANextMonth(){
       ${nextYear}年${nextMonth}月は定期らいぶ月（1月・7月以外）です。
     </div>`;
 
-    // 通常らいぶの曜日・週の集計
+    // 通常らいぶの曜日・週の集計（直近1年分のみ・古いデータは参考程度に留める）
+    const oneYearAgo = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
+    const recentRegular = BA_REGULAR_HISTORY.filter(x => new Date(x.liveDate+"T00:00:00") >= oneYearAgo);
+    const regularForStats = recentRegular.length >= 4 ? recentRegular : BA_REGULAR_HISTORY; // 件数が少なすぎる場合は全件にフォールバック
+
     const liveDows={}, liveWeeks={};
-    BA_REGULAR_HISTORY.forEach(x=>{
+    regularForStats.forEach(x=>{
       const d=new Date(x.liveDate+"T00:00:00");
       liveDows[d.getDay()]=(liveDows[d.getDay()]||0)+1;
       liveWeeks[weekOfMonth(x.liveDate)]=(liveWeeks[weekOfMonth(x.liveDate)]||0)+1;
@@ -1087,10 +1105,10 @@ function renderBANextMonth(){
     if(liveDay){
       const liveDow=DOW_JP[new Date(nextYear,nextMonth-1,liveDay).getDay()];
 
-      const offsets=BA_REGULAR_HISTORY.map(x=>x.offset);
+      const offsets=regularForStats.map(x=>x.offset);
       const avgOff=Math.round(offsets.reduce((a,b)=>a+b)/offsets.length);
       const mDowCounts={};
-      BA_REGULAR_HISTORY.forEach(x=>{const d=new Date(x.mainteDate+"T00:00:00").getDay();mDowCounts[d]=(mDowCounts[d]||0)+1;});
+      regularForStats.forEach(x=>{const d=new Date(x.mainteDate+"T00:00:00").getDay();mDowCounts[d]=(mDowCounts[d]||0)+1;});
       const topMD=+Object.entries(mDowCounts).sort((a,b)=>b[1]-a[1])[0][0];
       const mDay = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, liveDay+avgOff), topMD);
       const mDow=DOW_JP[new Date(nextYear,nextMonth-1,mDay).getDay()];
@@ -1103,7 +1121,7 @@ function renderBANextMonth(){
       <div style="background:#f0fff4;border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid #9be6b8;">
         <div style="font-size:13.5px;font-weight:700;color:#1a7f4b;">🔧 メンテ予想</div>
         <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${mDay}日（${mDow}）11:00〜（予想）</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">らいぶから+${mDay-liveDay}日・過去最多${DOW_JP[topMD]}曜</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">らいぶから+${mDay-liveDay}日・直近${regularForStats.length}件中最多${DOW_JP[topMD]}曜</div>
       </div>`;
     }
   }
@@ -1209,8 +1227,8 @@ function renderBAMainte(){
   </div>`;
 
   // 直近の実績リスト
-  html += `<div style="font-weight:700;margin:16px 0 8px;">直近のメンテ実績</div>`;
-  [...sorted].reverse().slice(0,15).forEach(s=>{
+  html += `<div style="font-weight:700;margin:16px 0 8px;">直近のメンテ実績（新しい順）</div>`;
+  [...sorted].reverse().slice(0,10).forEach(s=>{
     const d=new Date(s+"T00:00:00");
     const dc2=d.getDay()===0?'color:var(--live)':d.getDay()===6?'color:var(--video)':'';
     html+=`<div style="display:flex;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px;">
@@ -1218,6 +1236,9 @@ function renderBAMainte(){
       <span style="${dc2}">(${DOW_JP[d.getDay()]})</span>
     </div>`;
   });
+  html += `<div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+    ※予測には直近の実績を優先的に使用しています。古いデータは参考表示のみです。
+  </div>`;
 
   el.innerHTML = html;
 }
