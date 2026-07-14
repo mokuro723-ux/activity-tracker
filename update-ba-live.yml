@@ -1,0 +1,54 @@
+name: ブルアカらいぶ 自動データ更新
+
+on:
+  schedule:
+    # 毎週月曜 9:00 JST (= UTC 0:00) に実行
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+    # 手動実行も可能（Actionsタブから "Run workflow" で即時実行できます）
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@v4
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 自動更新スクリプト実行
+        id: update
+        run: |
+          python update_ba_live.py 2>&1 | tee update_log.txt
+          echo "---"
+          echo "実行完了"
+
+      - name: 実行ログをサマリーに表示
+        if: always()
+        run: |
+          echo "## ブルアカらいぶ自動更新ログ" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat update_log.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: 変更があればコミット・プッシュ
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "変更なし・スキップ"
+          else
+            git commit -m "🤖 ブルアカらいぶ データ自動更新 $(date +'%Y-%m-%d')"
+            git push
+          fi
+
+      - name: ログファイルを削除（コミットしない）
+        if: always()
+        run: rm -f update_log.txt
