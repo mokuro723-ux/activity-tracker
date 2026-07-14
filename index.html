@@ -744,16 +744,16 @@ function nearestDowInRange(y, m1, baseDay, prefDow){
 const BA_LIVE_HISTORY = [
   { label:"1周年",          date:"2022-01-21", time:"19:00", note:"ふぁーすとあにばSP！",                               type:"live" },
   { label:"1周年後夜祭",     date:"2022-01-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
-  { label:"1周年メンテ",     date:"2022-01-26", time:"11:00", note:"らいぶから5日後（水）",                             type:"mainte" },
+  { label:"1周年メンテ",     date:"2022-01-26", time:"11:00", note:"らいぶから5日後（水）※一次ソース未確認・当時の攻略サイト記載ベース", type:"mainte" },
   { label:"1.5周年",        date:"2022-07-16", time:"19:00", note:"夏のブルアカらいぶ！1.5周年記念すぺしゃる！",        type:"live" },
   { label:"1.5周年後夜祭",   date:"2022-07-17", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
-  { label:"1.5周年メンテ",   date:"2022-07-20", time:"11:00", note:"らいぶから4日後（水）",                             type:"mainte" },
+  { label:"1.5周年メンテ",   date:"2022-07-20", time:"11:00", note:"らいぶから4日後（水）※一次ソース未確認",             type:"mainte" },
   { label:"2周年",          date:"2023-01-22", time:"19:00", note:"せかんどあにばSP！（ブルアカふぇす会場）",           type:"live" },
   { label:"2周年後夜祭",     date:"2023-01-23", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
-  { label:"2周年メンテ",     date:"2023-01-24", time:"11:00", note:"らいぶから2日後（火）",                             type:"mainte" },
+  { label:"2周年メンテ",     date:"2023-01-24", time:"11:00", note:"らいぶから2日後（火）※第2章実装日として複数ソースで確認済み", type:"mainte" },
   { label:"2.5周年",        date:"2023-07-23", time:"17:00", note:"夏のブルアカらいぶ！あっちっちSP",                   type:"live" },
   { label:"2.5周年後夜祭",   date:"2023-07-24", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
-  { label:"2.5周年メンテ",   date:"2023-07-26", time:"11:00", note:"らいぶから3日後（水）",                             type:"mainte" },
+  { label:"2.5周年メンテ",   date:"2023-07-26", time:"11:00", note:"らいぶから3日後（水）※一次ソース未確認",             type:"mainte" },
   { label:"3周年 Day1",     date:"2024-01-20", time:"10:00", note:"さーどあにばSP！（ふぇす Day1）",                    type:"live" },
   { label:"3周年 Day2",     date:"2024-01-21", time:"16:00", note:"さーどあにばSP！（ふぇす Day2・生放送本編）",         type:"live" },
   { label:"3周年後夜祭",     date:"2024-01-22", time:null,    note:"らいぶ最終日翌日",                                  type:"kouyasai" },
@@ -1125,14 +1125,16 @@ function renderBAMainte(){
   const lastDateStr = sorted[sorted.length-1];
   const lastDate = new Date(lastDateStr+"T00:00:00");
 
-  // 間隔計算：30日を超える間隔は「未確認データによる歯抜け」とみなし除外
-  // （実データ上、判明している連続区間はすべて14日間隔のため、30日超は異常値扱い）
+  // 間隔計算：BA_REGULAR_MAINTE_EXTRA/BA_REGULAR_HISTORYの収録網羅性は完全ではないため、
+  // 全区間の平均ではなく「直近5件の間隔のうち25日以内のもの」から算出する。
+  // 公式サイトが「定期メンテはおよそ14日〜20日のペース」と明記しているため、
+  // 25日超は取りこぼしによる歯抜けとみなし除外する。
   const intervalsRaw=[];
-  for(let i=1;i<sorted.length;i++){
+  for(let i=Math.max(1,sorted.length-6);i<sorted.length;i++){
     const a=new Date(sorted[i-1]+"T00:00:00"), b=new Date(sorted[i]+"T00:00:00");
     intervalsRaw.push(Math.round((b-a)/86400000));
   }
-  const intervals = intervalsRaw.filter(x=>x<=30);
+  const intervals = intervalsRaw.filter(x=>x<=25);
   const avgInterval = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b)/intervals.length) : 14;
 
   // 曜日の最頻値（直近ほど重みを大きく：直近5件は3倍、直近6-10件は2倍、それ以前は1倍）

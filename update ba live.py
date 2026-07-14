@@ -115,10 +115,12 @@ def extract_live_broadcasts(html):
 # ────────────────────────────────────────────────
 # 2) メンテ日の抽出（複数ソース共通）
 # ────────────────────────────────────────────────
-def extract_mainte_dates(html, after_date=None, within_days=21):
+def extract_mainte_dates(html, after_date=None, within_days=20):
     """
     ページ内から「M/D(曜)メンテ」「YYYY/M/D(曜)メンテ」等の記述を全部拾う。
     after_date が指定されていれば、その日から within_days 日以内のものだけ返す。
+    ※ within_days=20 は公式サイトの「定期メンテナンスはおよそ14日〜20日のペースで
+      行われます」という明記に基づくデフォルト値。
     """
     found = []
     patterns = [
@@ -307,7 +309,7 @@ def main():
                 if b["is_anniv_month"]:
                     # 周年系：2回目メンテ（大型）も推定 or 実測を試みる
                     mainte2_candidates = extract_mainte_dates(
-                        live_html, after_date=mainte_date + datetime.timedelta(days=7), within_days=14
+                        live_html, after_date=mainte_date + datetime.timedelta(days=7), within_days=20
                     )
                     mainte2_date = mainte2_candidates[0] if mainte2_candidates else (mainte_date + datetime.timedelta(days=14))
                     html = insert_anniv_entry(html, live_date, b["time"], b["title"], mainte_date, mainte2_date)
