@@ -718,6 +718,26 @@ function fmtDateJP(dateStr){
   const d = new Date(dateStr+"T00:00:00");
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
 }
+// 指定年月の「第wn週のdow曜日」の日付(1-31)を返す。月内に存在しなければnull
+function getNthWeekday(y, m1, wn, dow){
+  const first = new Date(y, m1-1, 1).getDay();
+  const d = 1 + (dow - first + 7) % 7 + (wn - 1) * 7;
+  const lastDay = new Date(y, m1, 0).getDate();
+  return d <= lastDay ? d : null;
+}
+// dayを月内の日数に収める（月末を超えないようclamp）
+function clampDayInMonth(y, m1, day){
+  const lastDay = new Date(y, m1, 0).getDate();
+  return Math.min(Math.max(day, 1), lastDay);
+}
+// base日から見て「月内でprefDowに最も近い日」を候補[-1,0,+1]から選ぶ
+function nearestDowInRange(y, m1, baseDay, prefDow){
+  const lastDay = new Date(y, m1, 0).getDate();
+  const cands = [baseDay-1, baseDay, baseDay+1].filter(x=>x>=1 && x<=lastDay);
+  return cands.sort((a,b)=>
+    Math.abs(new Date(y,m1-1,a).getDay()-prefDow) - Math.abs(new Date(y,m1-1,b).getDay()-prefDow)
+  )[0];
+}
 
 // ─── データ ───────────────────────────────────────────────
 // type: live / kouyasai / mainte / mainte2（2回目大型）
@@ -734,12 +754,13 @@ const BA_LIVE_HISTORY = [
   { label:"2.5周年",        date:"2023-07-23", time:"17:00", note:"夏のブルアカらいぶ！あっちっちSP",                   type:"live" },
   { label:"2.5周年後夜祭",   date:"2023-07-24", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
   { label:"2.5周年メンテ",   date:"2023-07-26", time:"11:00", note:"らいぶから3日後（水）",                             type:"mainte" },
-  { label:"3周年",          date:"2024-01-21", time:"10:00", note:"さーどあにばSP！（ふぇす Day2）",                    type:"live" },
-  { label:"3周年後夜祭",     date:"2024-01-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
-  { label:"3周年メンテ",     date:"2024-01-22", time:"11:00", note:"らいぶから1日後（月）",                             type:"mainte" },
+  { label:"3周年 Day1",     date:"2024-01-20", time:"10:00", note:"さーどあにばSP！（ふぇす Day1）",                    type:"live" },
+  { label:"3周年 Day2",     date:"2024-01-21", time:"16:00", note:"さーどあにばSP！（ふぇす Day2・生放送本編）",         type:"live" },
+  { label:"3周年後夜祭",     date:"2024-01-22", time:null,    note:"らいぶ最終日翌日",                                  type:"kouyasai" },
+  { label:"3周年メンテ",     date:"2024-01-24", time:"11:00", note:"らいぶから3日後（水）※実データ確認済み",             type:"mainte" },
   { label:"3.5周年",        date:"2024-07-21", time:"10:00", note:"夏のブルアカらいぶ！はっぴ～さま～しょ～たいむ！SP", type:"live" },
   { label:"3.5周年後夜祭",   date:"2024-07-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
-  { label:"3.5周年メンテ",   date:"2024-07-22", time:"11:00", note:"らいぶから1日後（月）",                             type:"mainte" },
+  { label:"3.5周年メンテ",   date:"2024-07-22", time:"11:00", note:"らいぶから1日後（月）※実データ確認済み",             type:"mainte" },
   { label:"4周年 Day1",     date:"2025-01-17", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day1）",                  type:"live" },
   { label:"4周年 Day2",     date:"2025-01-18", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day2）",                  type:"live" },
   { label:"4周年後夜祭",     date:"2025-01-19", time:null,    note:"らいぶ最終日翌日（ふぇす Day3）",                   type:"kouyasai" },
@@ -758,36 +779,39 @@ const BA_LIVE_HISTORY = [
 
 // 通常ブルアカらいぶ（周年・ハーフを除く定期放送）
 const BA_REGULAR_HISTORY = [
-  { label:"2024/03/24 春SP",          liveDate:"2024-03-24", mainteDate:"2024-03-25", offset:1,  liveTime:"19:00" },
-  { label:"2024/04/20 京都旅行SP",     liveDate:"2024-04-20", mainteDate:"2024-04-22", offset:2,  liveTime:"17:00" },
-  { label:"2024/06/22 夏直前SP",       liveDate:"2024-06-22", mainteDate:"2024-06-24", offset:2,  liveTime:"19:00" },
-  { label:"2024/10/19 秋SP",           liveDate:"2024-10-19", mainteDate:"2024-10-21", offset:2,  liveTime:"19:00" },
-  { label:"2024/12/22 クリスマス前SP", liveDate:"2024-12-22", mainteDate:"2024-12-24", offset:2,  liveTime:"19:00" },
-  { label:"2025/04/20 春はにかむSP",   liveDate:"2025-04-20", mainteDate:"2025-04-22", offset:2,  liveTime:"19:00" },
-  { label:"2025/08/17 みに♪りとらい", liveDate:"2025-08-17", mainteDate:"2025-08-19", offset:2,  liveTime:"19:00" },
-  { label:"2025/09/20 みに♪京都出張", liveDate:"2025-09-20", mainteDate:"2025-09-22", offset:2,  liveTime:"19:00" },
-  { label:"2025/10/18 秋からーずSP",   liveDate:"2025-10-18", mainteDate:"2025-10-20", offset:2,  liveTime:"19:00" },
-  { label:"2025/12/21 冬SP",           liveDate:"2025-12-21", mainteDate:"2025-12-23", offset:2,  liveTime:"19:00" },
-  { label:"2026/04/19 春ふぃーばー",   liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
+  { label:"2024/03/24 春SP",              liveDate:"2024-03-24", mainteDate:"2024-03-25", offset:1,  liveTime:"19:00" },
+  { label:"2024/04/20 京都旅行SP",         liveDate:"2024-04-20", mainteDate:"2024-04-22", offset:2,  liveTime:"17:00" },
+  { label:"2024/06/22 夏直前SP",           liveDate:"2024-06-22", mainteDate:"2024-06-24", offset:2,  liveTime:"19:00" },
+  { label:"2024/10/19 秋SP",               liveDate:"2024-10-19", mainteDate:"2024-10-21", offset:2,  liveTime:"19:00" },
+  { label:"2024/12/22 クリスマス前SP",     liveDate:"2024-12-22", mainteDate:"2024-12-24", offset:2,  liveTime:"19:00" },
+  { label:"2025/04/20 すぷりんぐはずかむSP", liveDate:"2025-04-20", mainteDate:"2025-04-22", offset:2,  liveTime:"19:00" },
+  { label:"2025/05/18 みに♪",              liveDate:"2025-05-18", mainteDate:"2025-05-20", offset:2,  liveTime:"19:00" },
+  { label:"2025/08/17 みに♪りとらい",      liveDate:"2025-08-17", mainteDate:"2025-08-19", offset:2,  liveTime:"19:00" },
+  { label:"2025/09/20 みに♪京都出張",      liveDate:"2025-09-20", mainteDate:"2025-09-22", offset:2,  liveTime:"19:00" },
+  { label:"2025/10/18 秋からーずSP",       liveDate:"2025-10-18", mainteDate:"2025-10-20", offset:2,  liveTime:"19:00" },
+  { label:"2025/12/20 くりぱSP",           liveDate:"2025-12-20", mainteDate:"2025-12-24", offset:4,  liveTime:"19:00" },
+  { label:"2026/04/19 すぷりんぐふぃーばーSP", liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
+  { label:"2026/06/20 ざ☆すたーとおぶさまーSP", liveDate:"2026-06-20", mainteDate:"2026-06-24", offset:4,  liveTime:"19:00" },
 ];
 
-// 定期メンテ実績（日付のみ・検索で直接確認できた確度の高いもののみ収録）
+// 定期メンテ実績（日付のみ・BA_REGULAR_HISTORYに紐付かない単発の確認済みメンテ日）
 // 【確定パターン】利用者証言・公式アナウンス複数件により、
 // 基本は「隔週水曜11:00〜17:00（イベント切り替え時は19:00まで延長）」が確定。
-// 例外的に火曜・金曜（主に臨時メンテ）になることがある。
-// 連続実績のある2025/12〜2026/7の区間はほぼ全て14日間隔・水曜で一致。
-const BA_REGULAR_MAINTE = [
-  "2025-05-20", // 火（例外）
+// 例外的に火曜・金曜（主に臨時メンテ・周年直後）になることがある。
+const BA_REGULAR_MAINTE_EXTRA = [
   "2025-12-03","2025-12-17", // 水・水（14日間隔）
-  "2026-01-20", // 火（周年直後のため例外）
-  "2026-02-03", // 火（周年2回目大型メンテのため例外）
+  "2026-02-03", // 火（周年2回目大型メンテと同日）
   "2026-03-18", // 水
   "2026-04-01", // 水（14日間隔）
   "2026-05-27", // 水
-  "2026-06-10", // 水（14日間隔）
-  "2026-06-24", // 水（14日間隔）
-  "2026-07-08", // 水（14日間隔）
+  "2026-07-08", // 水
 ];
+// 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分、重複排除・ソート済み）
+function getAllRegularMainteDates(){
+  const fromHistory = BA_REGULAR_HISTORY.map(x=>x.mainteDate);
+  const merged = Array.from(new Set([...fromHistory, ...BA_REGULAR_MAINTE_EXTRA]));
+  return merged.sort();
+}
 
 // ─── サブタブ切り替え ───────────────────────────────────────
 let baRendered = false;
@@ -966,12 +990,6 @@ function renderBANextMonth(){
     const topD = +Object.entries(dc).sort((a,b)=>b[1]-a[1])[0][0];
     const topT = Object.entries(tc).sort((a,b)=>b[1]-a[1])[0][0];
 
-    function getNthWeekday(y,m1,wn,dow){
-      const first = new Date(y,m1-1,1).getDay();
-      const d = 1+(dow-first+7)%7+(wn-1)*7;
-      return d<=new Date(y,m1,0).getDate()?d:null;
-    }
-
     // 本命・候補
     const candidates=[];
     [[topW,topD],[topW,(topD+1)%7],[topW,(topD-1+7)%7],[topW-1,topD],[topW+1,topD]].forEach(([wn,dn])=>{
@@ -1023,16 +1041,9 @@ function renderBANextMonth(){
       });
       const avgM2 = m2Offsets2.length ? Math.round(m2Offsets2.reduce((a,b)=>a+b)/m2Offsets2.length) : 14;
 
-      function pickDay(base,avg,prefDow,y,m1){
-        let d=base+avg; const last2=new Date(y,m1,0).getDate();
-        if(d>last2)d=last2;
-        const cands=[d-1,d,d+1].filter(x=>x>=1&&x<=last2);
-        return cands.sort((a,b)=>Math.abs(new Date(y,m1-1,a).getDay()-prefDow)-Math.abs(new Date(y,m1-1,b).getDay()-prefDow))[0];
-      }
-
       const kouyasaiDay = Math.min(mainDay+1, last);
-      const m1Day = pickDay(mainDay, avgM1, topM1Dow, nextYear, nextMonth);
-      const m2Day = pickDay(m1Day, avgM2, 1, nextYear, nextMonth); // 月曜優先
+      const m1Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, mainDay+avgM1), topM1Dow);
+      const m2Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, m1Day+avgM2), 1); // 月曜優先
 
       const kouyasaiDow = DOW_JP[new Date(nextYear,nextMonth-1,kouyasaiDay).getDay()];
       const m1Dow = DOW_JP[new Date(nextYear,nextMonth-1,m1Day).getDay()];
@@ -1071,12 +1082,6 @@ function renderBANextMonth(){
     const topLD=+Object.entries(liveDows).sort((a,b)=>b[1]-a[1])[0][0];
     const topLW=+Object.entries(liveWeeks).sort((a,b)=>b[1]-a[1])[0][0];
 
-    function getNthWeekday(y,m1,wn,dow){
-      const first=new Date(y,m1-1,1).getDay();
-      const d=1+(dow-first+7)%7+(wn-1)*7;
-      return d<=new Date(y,m1,0).getDate()?d:null;
-    }
-
     const liveDay = getNthWeekday(nextYear,nextMonth,topLW,topLD) ||
                     getNthWeekday(nextYear,nextMonth,topLW-1,topLD);
     if(liveDay){
@@ -1087,10 +1092,7 @@ function renderBANextMonth(){
       const mDowCounts={};
       BA_REGULAR_HISTORY.forEach(x=>{const d=new Date(x.mainteDate+"T00:00:00").getDay();mDowCounts[d]=(mDowCounts[d]||0)+1;});
       const topMD=+Object.entries(mDowCounts).sort((a,b)=>b[1]-a[1])[0][0];
-      const last=new Date(nextYear,nextMonth,0).getDate();
-      let mDay=liveDay+avgOff; if(mDay>last)mDay=last;
-      const mCands=[mDay-1,mDay,mDay+1].filter(x=>x>=1&&x<=last);
-      mDay=mCands.sort((a,b)=>Math.abs(new Date(nextYear,nextMonth-1,a).getDay()-topMD)-Math.abs(new Date(nextYear,nextMonth-1,b).getDay()-topMD))[0];
+      const mDay = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, liveDay+avgOff), topMD);
       const mDow=DOW_JP[new Date(nextYear,nextMonth-1,mDay).getDay()];
 
       html+=`<div style="font-weight:700;margin-bottom:8px;">📅 通常らいぶ＋メンテ予想</div>
@@ -1119,7 +1121,7 @@ function renderBAMainte(){
   if(el.innerHTML) return;
 
   // 最後のメンテ日から次回を予測
-  const sorted = [...BA_REGULAR_MAINTE].sort();
+  const sorted = getAllRegularMainteDates();
   const lastDateStr = sorted[sorted.length-1];
   const lastDate = new Date(lastDateStr+"T00:00:00");
 
