@@ -753,7 +753,7 @@ const BA_LIVE_HISTORY = [
   { label:"5周年 Day2",     date:"2026-01-18", time:"10:00", note:"ふぃふすあにばSP！ Day2（ふぇす）",                  type:"live" },
   { label:"5周年後夜祭",     date:"2026-01-19", time:null,    note:"らいぶ最終日翌日",                                  type:"kouyasai" },
   { label:"5周年メンテ",     date:"2026-01-20", time:"11:00", note:"らいぶから2日後（火）",                             type:"mainte" },
-  { label:"5周年大型メンテ",  date:"2026-02-03", time:"11:00", note:"メンテから14日後（火）・大型アップデート",           type:"mainte2" },
+  { label:"5周年大型メンテ",  date:"2026-02-03", time:"11:00", note:"推定（1回目メンテ+14日）※1/29にフェスガチャ切替あり",  type:"mainte2" },
 ];
 
 // 通常ブルアカらいぶ（周年・ハーフを除く定期放送）
@@ -771,12 +771,22 @@ const BA_REGULAR_HISTORY = [
   { label:"2026/04/19 春ふぃーばー",   liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
 ];
 
-// 定期メンテ実績（日付のみ・検索で確認できた確度の高いもののみ収録）
-// 注：水曜開催が最多という傾向が確認されている（公式アナウンス・利用者証言より）
+// 定期メンテ実績（日付のみ・検索で直接確認できた確度の高いもののみ収録）
+// 【確定パターン】利用者証言・公式アナウンス複数件により、
+// 基本は「隔週水曜11:00〜17:00（イベント切り替え時は19:00まで延長）」が確定。
+// 例外的に火曜・金曜（主に臨時メンテ）になることがある。
+// 連続実績のある2025/12〜2026/7の区間はほぼ全て14日間隔・水曜で一致。
 const BA_REGULAR_MAINTE = [
-  "2025-05-20","2025-12-03","2025-12-17",
-  "2026-01-20","2026-02-03","2026-03-18","2026-04-01",
-  "2026-06-10","2026-06-24","2026-07-08",
+  "2025-05-20", // 火（例外）
+  "2025-12-03","2025-12-17", // 水・水（14日間隔）
+  "2026-01-20", // 火（周年直後のため例外）
+  "2026-02-03", // 火（周年2回目大型メンテのため例外）
+  "2026-03-18", // 水
+  "2026-04-01", // 水（14日間隔）
+  "2026-05-27", // 水
+  "2026-06-10", // 水（14日間隔）
+  "2026-06-24", // 水（14日間隔）
+  "2026-07-08", // 水（14日間隔）
 ];
 
 // ─── サブタブ切り替え ───────────────────────────────────────
@@ -1113,13 +1123,14 @@ function renderBAMainte(){
   const lastDateStr = sorted[sorted.length-1];
   const lastDate = new Date(lastDateStr+"T00:00:00");
 
-  // 直近10件の間隔から平均を計算
-  const intervals=[];
-  for(let i=sorted.length-1;i>=Math.max(0,sorted.length-10);i--){
-    if(i===0) break;
-    const a=new Date(sorted[i]+"T00:00:00"), b=new Date(sorted[i-1]+"T00:00:00");
-    intervals.push(Math.round((a-b)/86400000));
+  // 間隔計算：30日を超える間隔は「未確認データによる歯抜け」とみなし除外
+  // （実データ上、判明している連続区間はすべて14日間隔のため、30日超は異常値扱い）
+  const intervalsRaw=[];
+  for(let i=1;i<sorted.length;i++){
+    const a=new Date(sorted[i-1]+"T00:00:00"), b=new Date(sorted[i]+"T00:00:00");
+    intervalsRaw.push(Math.round((b-a)/86400000));
   }
+  const intervals = intervalsRaw.filter(x=>x<=30);
   const avgInterval = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b)/intervals.length) : 14;
 
   // 曜日の最頻値（直近ほど重みを大きく：直近5件は3倍、直近6-10件は2倍、それ以前は1倍）
