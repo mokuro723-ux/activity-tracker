@@ -714,10 +714,6 @@ function weekOfMonth(dateStr){
   const d = new Date(dateStr+"T00:00:00");
   return Math.ceil(d.getDate()/7);
 }
-function fmtDate(dateStr){
-  const d = new Date(dateStr+"T00:00:00");
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
 function fmtDateJP(dateStr){
   const d = new Date(dateStr+"T00:00:00");
   return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
@@ -775,16 +771,12 @@ const BA_REGULAR_HISTORY = [
   { label:"2026/04/19 春ふぃーばー",   liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
 ];
 
-// 定期メンテ実績（日付のみ）
+// 定期メンテ実績（日付のみ・検索で確認できた確度の高いもののみ収録）
+// 注：水曜開催が最多という傾向が確認されている（公式アナウンス・利用者証言より）
 const BA_REGULAR_MAINTE = [
-  "2024-03-25","2024-04-22","2024-06-05","2024-06-24","2024-08-12","2024-08-26",
-  "2024-10-01","2024-10-21","2024-11-12","2024-12-02","2024-12-24",
-  "2025-01-20","2025-02-03","2025-02-17","2025-03-03","2025-03-17",
-  "2025-04-01","2025-04-22","2025-05-07","2025-05-19","2025-06-02","2025-06-16",
-  "2025-07-07","2025-07-22","2025-08-06","2025-08-19","2025-09-02","2025-09-22",
-  "2025-10-07","2025-10-20","2025-11-04","2025-11-17","2025-12-01","2025-12-23",
-  "2026-01-07","2026-01-20","2026-02-03","2026-02-12","2026-03-02","2026-03-18",
-  "2026-04-07","2026-04-21","2026-05-12","2026-05-27",
+  "2025-05-20","2025-12-03","2025-12-17",
+  "2026-01-20","2026-02-03","2026-03-18","2026-04-01",
+  "2026-06-10","2026-06-24","2026-07-08",
 ];
 
 // ─── サブタブ切り替え ───────────────────────────────────────
@@ -1130,9 +1122,14 @@ function renderBAMainte(){
   }
   const avgInterval = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b)/intervals.length) : 14;
 
-  // 曜日の最頻値
+  // 曜日の最頻値（直近ほど重みを大きく：直近5件は3倍、直近6-10件は2倍、それ以前は1倍）
   const dowCounts2={};
-  sorted.forEach(s=>{const d=new Date(s+"T00:00:00").getDay();dowCounts2[d]=(dowCounts2[d]||0)+1;});
+  sorted.forEach((s,i)=>{
+    const d=new Date(s+"T00:00:00").getDay();
+    const fromEnd = sorted.length - 1 - i; // 0=最新
+    const weight = fromEnd < 5 ? 3 : fromEnd < 10 ? 2 : 1;
+    dowCounts2[d]=(dowCounts2[d]||0)+weight;
+  });
   const topDow2=+Object.entries(dowCounts2).sort((a,b)=>b[1]-a[1])[0][0];
 
   // 次回予想
