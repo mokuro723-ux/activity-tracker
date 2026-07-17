@@ -990,22 +990,42 @@ function renderBANextMonth(){
     const recentOnly = sameMonthAll.filter(x=>new Date(x.date+"T00:00:00") >= RECENT_YEARS_CUTOFF);
     const targetLive = recentOnly.length >= 3 ? recentOnly : sameMonthAll.slice(-3);
 
-    // 週・曜日・時刻の集計
-    function counts(arr,fn){const c={};arr.forEach(x=>{const k=fn(x);c[k]=(c[k]||0)+1;});return c;}
-    const wc = counts(targetLive, x=>weekOfMonth(x.date));
-    const dc = counts(targetLive, x=>new Date(x.date+"T00:00:00").getDay());
-    const tc = counts(targetLive, x=>x.time);
+    // 週・曜日・時刻の集計は直近ほど重みを大きくする（直近1件は3倍、2件目は2倍）
+    const wc={}, dc={}, tc={};
+    targetLive.forEach((x,i)=>{
+      const fromEnd = targetLive.length-1-i;
+      const w = fromEnd===0 ? 3 : fromEnd===1 ? 2 : 1;
+      const wn = weekOfMonth(x.date);
+      const dn = new Date(x.date+"T00:00:00").getDay();
+      wc[wn]=(wc[wn]||0)+w;
+      dc[dn]=(dc[dn]||0)+w;
+      tc[x.time]=(tc[x.time]||0)+w;
+    });
     const topW = +Object.entries(wc).sort((a,b)=>b[1]-a[1])[0][0];
     const topD = +Object.entries(dc).sort((a,b)=>b[1]-a[1])[0][0];
     const topT = Object.entries(tc).sort((a,b)=>b[1]-a[1])[0][0];
 
-    // 本命・候補
+    // 本命・候補（週±1、曜日は隣接2つも含めて幅広く候補を出す）
     const candidates=[];
-    [[topW,topD],[topW,(topD+1)%7],[topW,(topD-1+7)%7],[topW-1,topD],[topW+1,topD]].forEach(([wn,dn])=>{
-      const d=getNthWeekday(nextYear,nextMonth,wn,dn);
-      if(d) candidates.push({day:d,dow:dn,week:wn,score:(wc[wn]||0)+(dc[dn]||0)});
+    const weekOptions = [topW, topW-1, topW+1];
+    const dowOptions = [topD, (topD+1)%7, (topD-1+7)%7];
+    weekOptions.forEach(wn=>{
+      dowOptions.forEach(dn=>{
+        const d=getNthWeekday(nextYear,nextMonth,wn,dn);
+        if(d) candidates.push({day:d,dow:dn,week:wn,score:(wc[wn]||0)*2+(dc[dn]||0)});
+      });
     });
-    candidates.sort((a,b)=>b.score-a.score);
+    // 重複除去（同じdayが複数候補から生成されることがあるため）
+    const seenDays = new Set();
+    const uniqCandidates = candidates
+      .sort((a,b)=>b.score-a.score)
+      .filter(c=>{
+        if(seenDays.has(c.day)) return false;
+        seenDays.add(c.day);
+        return true;
+      });
+    candidates.length = 0;
+    candidates.push(...uniqCandidates);
 
     const annivNum = isSummer ? (nextYear-2021)-1+0.5 : nextYear-2021;
     html += `<div style="background:#fff3cd;border-radius:10px;padding:10px 12px;margin-bottom:12px;border:1px solid #ffd777;">
@@ -1043,7 +1063,11 @@ function renderBANextMonth(){
       });
       const avgM1 = m1Offsets.length ? Math.round(m1Offsets.reduce((a,b)=>a+b)/m1Offsets.length) : 2;
       const m1DowCounts={};
-      m1s.forEach(m=>{const d=new Date(m.date+"T00:00:00").getDay();m1DowCounts[d]=(m1DowCounts[d]||0)+1;});
+      m1s.forEach((m,i)=>{
+        const d=new Date(m.date+"T00:00:00").getDay();
+        const w = i >= m1s.length-2 ? 2 : 1; // 直近2件を2倍重み
+        m1DowCounts[d]=(m1DowCounts[d]||0)+w;
+      });
       const topM1Dow = m1DowCounts&&Object.keys(m1DowCounts).length ? +Object.entries(m1DowCounts).sort((a,b)=>b[1]-a[1])[0][0] : 1;
 
       // 大型メンテ実績
@@ -1054,10 +1078,17 @@ function renderBANextMonth(){
         return m1?(new Date(m.date+"T00:00:00")-new Date(m1.date+"T00:00:00"))/86400000:14;
       });
       const avgM2 = m2Offsets2.length ? Math.round(m2Offsets2.reduce((a,b)=>a+b)/m2Offsets2.length) : 14;
+      const m2DowCounts={};
+      m2s.forEach((m,i)=>{
+        const d=new Date(m.date+"T00:00:00").getDay();
+        const w = i >= m2s.length-2 ? 2 : 1; // 直近2件を2倍重み
+        m2DowCounts[d]=(m2DowCounts[d]||0)+w;
+      });
+      const topM2Dow = Object.keys(m2DowCounts).length ? +Object.entries(m2DowCounts).sort((a,b)=>b[1]-a[1])[0][0] : 3; // データなければ水曜デフォルト
 
       const kouyasaiDay = Math.min(mainDay+1, last);
       const m1Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, mainDay+avgM1), topM1Dow);
-      const m2Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, m1Day+avgM2), 1); // 月曜優先
+      const m2Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, m1Day+avgM2), topM2Dow);
 
       const kouyasaiDow = DOW_JP[new Date(nextYear,nextMonth-1,kouyasaiDay).getDay()];
       const m1Dow = DOW_JP[new Date(nextYear,nextMonth-1,m1Day).getDay()];
@@ -1091,14 +1122,17 @@ function renderBANextMonth(){
     const recentRegular = BA_REGULAR_HISTORY.filter(x => new Date(x.liveDate+"T00:00:00") >= oneYearAgo);
     const regularForStats = recentRegular.length >= 4 ? recentRegular : BA_REGULAR_HISTORY; // 件数が少なすぎる場合は全件にフォールバック
 
-    const liveDows={}, liveWeeks={};
-    regularForStats.forEach(x=>{
+    // 「第何週の何曜日」を組み合わせ単位で集計する（週と曜日を別々に最頻値化すると
+    // 実在しない組み合わせが選ばれるリスクがあるため、組み合わせごとに数える）
+    const comboCounts={};
+    regularForStats.forEach((x,i)=>{
       const d=new Date(x.liveDate+"T00:00:00");
-      liveDows[d.getDay()]=(liveDows[d.getDay()]||0)+1;
-      liveWeeks[weekOfMonth(x.liveDate)]=(liveWeeks[weekOfMonth(x.liveDate)]||0)+1;
+      const key = `${weekOfMonth(x.liveDate)}-${d.getDay()}`;
+      const w = i >= regularForStats.length-3 ? 2 : 1; // 直近3件を2倍重み
+      comboCounts[key] = (comboCounts[key]||0) + w;
     });
-    const topLD=+Object.entries(liveDows).sort((a,b)=>b[1]-a[1])[0][0];
-    const topLW=+Object.entries(liveWeeks).sort((a,b)=>b[1]-a[1])[0][0];
+    const topCombo = Object.entries(comboCounts).sort((a,b)=>b[1]-a[1])[0][0];
+    const [topLW, topLD] = topCombo.split('-').map(Number);
 
     const liveDay = getNthWeekday(nextYear,nextMonth,topLW,topLD) ||
                     getNthWeekday(nextYear,nextMonth,topLW-1,topLD);
