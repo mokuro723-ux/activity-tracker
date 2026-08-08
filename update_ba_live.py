@@ -30,10 +30,17 @@ USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 
 # 巡回先（複数ソースで裏取りする）
-LIVE_LIST_URL = "https://game8.jp/blue-archive/637876"          # ブルアカらいぶ最新情報まとめ
-MAINTE_INFO_URL = "https://game8.jp/blue-archive/650323"        # メンテ・アップデート最新情報
-MAINTE_KAMIGAME_URL = "https://kamigame.jp/bluearchive/page/143252335034956337.html"  # メンテ最新情報
-NEWS_SUMMARY_URL = "https://game8.jp/blue-archive/640082"       # 最新情報まとめ（メンテ後実装の記述が多い）
+# 巡回先（複数ソースで裏取りする。個別記事はページ移動・統合されやすいため、
+# らいぶ情報も複数URLを試して合算する設計にしている）
+LIVE_LIST_URLS = [
+    "https://game8.jp/blue-archive/637876",          # ブルアカらいぶ最新情報まとめ
+    "https://game8.jp/blue-archive/640082",          # 最新情報まとめ（放送告知も載ることがある）
+]
+MAINTE_INFO_URLS = [
+    "https://game8.jp/blue-archive/650323",          # メンテ・アップデート最新情報
+    "https://kamigame.jp/bluearchive/page/143252335034956337.html",  # メンテ最新情報
+    "https://game8.jp/blue-archive/640082",          # 最新情報まとめ（メンテ後実装の記述が多い）
+]
 
 # 周年・ハーフ周年月（1月=周年, 7月=ハーフ周年）
 ANNIV_MONTHS = {1, 7}
@@ -72,36 +79,97 @@ def fetch(url, retries=3):
             time.sleep(3)
     return ""
 
+def _guess_year(this_year, month, day):
+    """年表記のないM/D文字列に対し、今日から半年以上離れないよう年を推定する"""
+    live_date = datetime.date(this_year, month, day)
+    today = datetime.date.today()
+    if (live_date - today).days > 200:
+        live_date = datetime.date(this_year - 1, month, day)
+    elif (today - live_date).days > 200:
+        live_date = datetime.date(this_year + 1, month, day)
+    return live_date
+
 # ────────────────────────────────────────────────
 # 1) 通常らいぶ・周年らいぶの新規放送を検出
 # ────────────────────────────────────────────────
 def extract_live_broadcasts(html):
     """
-    game8のらいぶまとめページから「タイトル＋放送日時」の組を抽出。
-    パターン例：
+    ページ内から「ブルアカらいぶ」関連の放送日時を検出する。
+    タイトルの有無に関わらず、まず日付+時刻の組を広く拾い、
+    近傍にタイトルらしき文字列があれば付与する（無ければ日付から仮タイトルを生成）。
+
+    対応パターン例：
       「ブルアカらいぶ！ざ☆すたーとおぶさまー！SP」が2026/6/20(土)19:00より配信されています。
       「夏のブルアカらいぶ！さんしゃいんさまーぱーてぃー！SP」を2025年7月19日（土）18:30から配信
+      ブルアカらいぶが2026年7月18日(土)19時より放送決定！
+      生放送「ブルアカらいぶ」は7/18(土)19:00から配信予定です。
     """
     results = []
-    patterns = [
-        # 「タイトル」が YYYY/M/D(曜)HH:MM
-        r'[「『]([^」』]{3,40}(?:らいぶ|SP|すたーと|ふぃーばー|はずかむ|みに)[^」』]{0,20})[」』]\s*(?:が|を)?\s*(\d{4})/(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]\s*(\d{1,2}):(\d{2})',
-        r'[「『]([^」』]{3,40}(?:らいぶ|SP|すたーと|ふぃーばー|はずかむ|みに)[^」』]{0,20})[」』]\s*(?:が|を)?\s*(\d{4})年(\d{1,2})月(\d{1,2})日[（(][^)）]{1,3}[）)]\s*(\d{1,2}):(\d{2})',
+
+    # 「ブルアカらいぶ」というキーワードの前後200文字を「放送関連の文脈」として切り出す
+    context_windows = []
+    for m in re.finditer(r'ブルアカ\s*らいぶ|ブルーアーカイブ\s*らいぶ', html):
+        start = max(0, m.start() - 100)
+        end = min(len(html), m.end() + 200)
+        context_windows.append(html[start:end])
+
+    # 日付＋時刻の抽出パターン（年ありなし両対応、区切り文字・分表記の揺れも吸収）
+    date_time_patterns = [
+        # YYYY/M/D(曜)HH:MM または YYYY年M月D日（曜）HH時MM分
+        r'(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?[（(][^)）]{1,3}[）)]\s*(\d{1,2})[:時](\d{2})',
+        # YYYY年M月D日（曜）HH時（分表記なし・「19時より」等）
+        r'(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?[（(][^)）]{1,3}[）)]\s*(\d{1,2})時(?!\d)',
+        # 年なし: M/D(曜)HH:MM
+        r'(?<!\d)(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]\s*(\d{1,2}):(\d{2})',
+        # 年なし: M/D(曜)HH時（分表記なし）
+        r'(?<!\d)(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]\s*(\d{1,2})時(?!\d)',
     ]
-    for pat in patterns:
-        for m in re.finditer(pat, html):
-            title = m.group(1).strip()
-            y, mo, d, hh, mm = m.groups()[1:]
-            try:
-                live_date = datetime.date(int(y), int(mo), int(d))
-            except ValueError:
-                continue
-            results.append({
-                "title": title,
-                "date": fmt(live_date),
-                "time": f"{int(hh):02d}:{mm}",
-                "is_anniv_month": live_date.month in ANNIV_MONTHS,
-            })
+
+    this_year = datetime.date.today().year
+
+    for ctx in context_windows:
+        # タイトルは「ブルアカらいぶ」キーワードに最も近い鍵括弧を優先して探す
+        kw_pos = ctx.find('らいぶ')
+        title_candidates = list(re.finditer(r'[「『]([^」』]{3,40})[」』]', ctx))
+        if title_candidates:
+            title_m = min(title_candidates, key=lambda m: abs(m.start() - kw_pos)) if kw_pos >= 0 else title_candidates[0]
+            default_title = title_m.group(1).strip()
+        else:
+            default_title = None
+
+        for pat in date_time_patterns:
+            for m in re.finditer(pat, ctx):
+                groups = m.groups()
+                try:
+                    if len(groups) == 5:
+                        y, mo, d, hh, mm = groups
+                        live_date = datetime.date(int(y), int(mo), int(d))
+                    elif len(groups) == 4 and len(groups[0]) == 4:
+                        # YYYY年M月D日HH時（分なし）
+                        y, mo, d, hh = groups
+                        mm = "00"
+                        live_date = datetime.date(int(y), int(mo), int(d))
+                    elif len(groups) == 4:
+                        # M/D(曜)HH:MM（年なし）
+                        mo, d, hh, mm = groups
+                        live_date = _guess_year(this_year, int(mo), int(d))
+                    else:
+                        # M/D(曜)HH時（年なし・分なし）
+                        mo, d, hh = groups
+                        mm = "00"
+                        live_date = _guess_year(this_year, int(mo), int(d))
+                except ValueError:
+                    continue
+
+                title = default_title or f"ブルアカらいぶ {fmt(live_date)}"
+
+                results.append({
+                    "title": title,
+                    "date": fmt(live_date),
+                    "time": f"{int(hh):02d}:{mm}",
+                    "is_anniv_month": live_date.month in ANNIV_MONTHS,
+                })
+
     # 重複排除（同じ日付は1件に）
     seen = set()
     dedup = []
@@ -121,36 +189,52 @@ def extract_mainte_dates(html, after_date=None, within_days=20):
     after_date が指定されていれば、その日から within_days 日以内のものだけ返す。
     ※ within_days=20 は公式サイトの「定期メンテナンスはおよそ14日〜20日のペースで
       行われます」という明記に基づくデフォルト値。
+
+    「メンテ」という語が日付の前後どちらに来ても拾えるよう、
+    まず「メンテ」キーワード周辺のテキストを切り出してから日付を探す方式に変更。
     """
     found = []
-    patterns = [
-        r'(\d{4})/(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]\s*(?:11:00\s*)?メンテ',
-        r'(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]\s*(?:11:00\s*)?のメンテナンス',
-        r'(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]\s*(?:11:00\s*)?メンテ(?:ナンス)?後',
-        r'(\d{1,2})月(\d{1,2})日[（(][^)）]{1,3}[）)]\s*(?:11:00\s*)?メンテ',
-    ]
     this_year = datetime.date.today().year
-    for pat in patterns:
-        for m in re.finditer(pat, html):
-            groups = m.groups()
-            try:
-                if len(groups) == 3:
-                    d = datetime.date(int(groups[0]), int(groups[1]), int(groups[2]))
-                else:
-                    # 年不明。after_dateがあればその年、なければ今年で仮置きし、
-                    # 半年以上のズレがあれば前後の年に補正
-                    base_year = after_date.year if after_date else this_year
-                    d = datetime.date(base_year, int(groups[0]), int(groups[1]))
-                    ref = after_date or datetime.date.today()
-                    if (d - ref).days > 200:
-                        d = datetime.date(base_year - 1, int(groups[0]), int(groups[1]))
-                    elif (ref - d).days > 200:
-                        d = datetime.date(base_year + 1, int(groups[0]), int(groups[1]))
-            except ValueError:
-                continue
-            if after_date and not (after_date <= d <= after_date + datetime.timedelta(days=within_days)):
-                continue
-            found.append(d)
+
+    # 「メンテ」関連キーワードの前後150文字を候補テキストとして切り出す
+    mainte_windows = []
+    for m in re.finditer(r'メンテナンス|メンテ(?!ナンス中)', html):
+        start = max(0, m.start() - 100)
+        end = min(len(html), m.end() + 100)
+        mainte_windows.append(html[start:end])
+
+    date_patterns = [
+        # YYYY/M/D(曜) or YYYY年M月D日（曜）
+        r'(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?(?:[（(][^)）]{1,3}[）)])?',
+        # M/D(曜) ※年なし
+        r'(?<!\d)(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]',
+        # M月D日（曜）※年なし
+        r'(?<!\d)(\d{1,2})月(\d{1,2})日[（(][^)）]{1,3}[）)]',
+    ]
+
+    for window in mainte_windows:
+        for pat in date_patterns:
+            for m in re.finditer(pat, window):
+                groups = m.groups()
+                try:
+                    if len(groups) == 3:
+                        d = datetime.date(int(groups[0]), int(groups[1]), int(groups[2]))
+                    else:
+                        # 年不明。after_dateがあればその年、なければ今年で仮置きし、
+                        # 半年以上のズレがあれば前後の年に補正
+                        base_year = after_date.year if after_date else this_year
+                        d = datetime.date(base_year, int(groups[0]), int(groups[1]))
+                        ref = after_date or datetime.date.today()
+                        if (d - ref).days > 200:
+                            d = datetime.date(base_year - 1, int(groups[0]), int(groups[1]))
+                        elif (ref - d).days > 200:
+                            d = datetime.date(base_year + 1, int(groups[0]), int(groups[1]))
+                except ValueError:
+                    continue
+                if after_date and not (after_date <= d <= after_date + datetime.timedelta(days=within_days)):
+                    continue
+                found.append(d)
+
     return sorted(set(found))
 
 def estimate_mainte_date(live_date, is_anniv):
@@ -208,9 +292,15 @@ def insert_anniv_entry(html, live_date, live_time, title, mainte_date, mainte2_d
             f'  {{ label:"{title}大型メンテ", date:"{fmt(mainte2_date)}", time:"11:00", note:"メンテから{offset2}日後（{dow_jp(mainte2_date)}）自動取得・推定含む", type:"mainte2" }},'
         )
     new_block = "\n".join(lines) + "\n"
+    def _replace(m):
+        existing = m.group(2)
+        # 既存内容の末尾に改行がなければ補う（連結時に1行化するのを防ぐ）
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        return m.group(1) + existing + new_block + m.group(3).lstrip("\n")
     return re.sub(
         r'(const BA_LIVE_HISTORY\s*=\s*\[)(.*?)(\n\];)',
-        lambda m: m.group(1) + m.group(2) + new_block + m.group(3).lstrip("\n"),
+        _replace,
         html, flags=re.S, count=1
     )
 
@@ -222,9 +312,14 @@ def insert_regular_entry(html, live_date, live_time, title, mainte_date):
         f'liveDate:"{fmt(live_date)}", mainteDate:"{fmt(mainte_date)}", '
         f'offset:{offset}, liveTime:"{live_time}" }},\n'
     )
+    def _replace(m):
+        existing = m.group(2)
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        return m.group(1) + existing + entry + m.group(3).lstrip("\n")
     return re.sub(
         r'(const BA_REGULAR_HISTORY\s*=\s*\[)(.*?)(\n\];)',
-        lambda m: m.group(1) + m.group(2) + entry + m.group(3).lstrip("\n"),
+        _replace,
         html, flags=re.S, count=1
     )
 
@@ -238,9 +333,14 @@ def insert_regular_mainte_extra(html, dates):
     if not to_add:
         return html
     new_lines = "".join(f'  "{d}",\n' for d in to_add)
+    def _replace(m):
+        existing = m.group(2)
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        return m.group(1) + existing + new_lines + m.group(3).lstrip("\n")
     return re.sub(
         r'(const BA_REGULAR_MAINTE_EXTRA\s*=\s*\[)(.*?)(\n\];)',
-        lambda m: m.group(1) + m.group(2) + new_lines + m.group(3).lstrip("\n"),
+        _replace,
         html, flags=re.S, count=1
     )
 
@@ -270,8 +370,17 @@ def main():
     added = 0
 
     # ── STEP 1: 新規らいぶ放送の検出 ──
-    print(f"\n[1/2] らいぶ情報取得: {LIVE_LIST_URL}")
-    live_html = fetch(LIVE_LIST_URL)
+    print(f"\n[1/2] らいぶ情報取得（{len(LIVE_LIST_URLS)}ソースを巡回）")
+    live_html_parts = []
+    for url in LIVE_LIST_URLS:
+        print(f"  取得: {url}")
+        h = fetch(url)
+        if h:
+            live_html_parts.append(h)
+        else:
+            print(f"    WARNING: 取得失敗", file=sys.stderr)
+        time.sleep(1)
+    live_html = "\n".join(live_html_parts)
     new_mainte_singles = []  # BA_REGULAR_HISTORYに紐付かないメンテ日の候補
 
     if live_html:
@@ -294,10 +403,13 @@ def main():
                 # メンテ日を実データから探す（放送ページ本文＋メンテ専用ページの両方をあたる）
                 mainte_candidates = extract_mainte_dates(live_html, after_date=live_date, within_days=10)
                 if not mainte_candidates:
-                    mainte_html = fetch(MAINTE_INFO_URL)
-                    if mainte_html:
-                        mainte_candidates = extract_mainte_dates(mainte_html, after_date=live_date, within_days=10)
-                    time.sleep(1)
+                    for murl in MAINTE_INFO_URLS:
+                        mainte_html = fetch(murl)
+                        time.sleep(1)
+                        if mainte_html:
+                            mainte_candidates = extract_mainte_dates(mainte_html, after_date=live_date, within_days=10)
+                            if mainte_candidates:
+                                break
 
                 if mainte_candidates:
                     mainte_date = mainte_candidates[0]
@@ -328,7 +440,7 @@ def main():
     # ── STEP 2: 単発の定期メンテ実績（らいぶに紐付かないもの）の収集 ──
     print(f"\n[2/2] 単発メンテ情報取得")
     try:
-        for url in (MAINTE_INFO_URL, MAINTE_KAMIGAME_URL, NEWS_SUMMARY_URL):
+        for url in MAINTE_INFO_URLS:
             print(f"  取得: {url}")
             mhtml = fetch(url)
             if not mhtml:
