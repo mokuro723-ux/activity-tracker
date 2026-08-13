@@ -259,6 +259,51 @@ def extract_mainte_dates(html, after_date=None, within_days=20):
 
     return sorted(set(found))
 
+def extract_gacha_switch_dates(html, after_date=None, within_days=20):
+    """
+    周年の「2回目メンテ（大型・エリア追加やガチャ切替）」はメンテ関連語を伴わない
+    記述になることがある（例：「記念限定募集は8月5日(水)11:00から」）ため、
+    ガチャ・排出率関連のキーワード周辺から日付を拾う専用関数。
+    extract_mainte_dates で見つからなかった場合のフォールバックとして使う想定。
+    """
+    found = []
+    this_year = datetime.date.today().year
+
+    gacha_windows = []
+    for m in re.finditer(r'限定募集|フェスガチャ|排出率|排出確率', html):
+        start = max(0, m.start() - 100)
+        end = min(len(html), m.end() + 100)
+        gacha_windows.append(html[start:end])
+
+    date_patterns = [
+        r'(\d{4})[年/](\d{1,2})[月/](\d{1,2})日?(?:[（(][^)）]{1,3}[）)])?',
+        r'(?<!\d)(\d{1,2})/(\d{1,2})[（(][^)）]{1,3}[）)]',
+        r'(?<!\d)(\d{1,2})月(\d{1,2})日[（(][^)）]{1,3}[）)]',
+    ]
+
+    for window in gacha_windows:
+        for pat in date_patterns:
+            for m in re.finditer(pat, window):
+                groups = m.groups()
+                try:
+                    if len(groups) == 3:
+                        d = datetime.date(int(groups[0]), int(groups[1]), int(groups[2]))
+                    else:
+                        base_year = after_date.year if after_date else this_year
+                        d = datetime.date(base_year, int(groups[0]), int(groups[1]))
+                        ref = after_date or datetime.date.today()
+                        if (d - ref).days > 200:
+                            d = datetime.date(base_year - 1, int(groups[0]), int(groups[1]))
+                        elif (ref - d).days > 200:
+                            d = datetime.date(base_year + 1, int(groups[0]), int(groups[1]))
+                except ValueError:
+                    continue
+                if after_date and not (after_date <= d <= after_date + datetime.timedelta(days=within_days)):
+                    continue
+                found.append(d)
+
+    return sorted(set(found))
+
 def estimate_mainte_date(live_date, is_anniv):
     """
     実測できなかった場合の推定。
@@ -441,11 +486,18 @@ def main():
                     print(f"    → メンテ日推定: {fmt(mainte_date)} ({dow_jp(mainte_date)})")
 
                 if b["is_anniv_month"]:
-                    # 周年系：2回目メンテ（大型）も推定 or 実測を試みる
+                    # 周年系：2回目メンテ（大型）も推定 or 実測を試みる。
+                    # 過去実績は+7日（5.5周年）〜+15日（4.5周年）と幅があるため、
+                    # 探索範囲は1回目メンテの翌日から広めに取る。
                     mainte2_candidates = extract_mainte_dates(
-                        live_html, after_date=mainte_date + datetime.timedelta(days=7), within_days=20
+                        live_html, after_date=mainte_date + datetime.timedelta(days=1), within_days=20
                     )
-                    mainte2_date = mainte2_candidates[0] if mainte2_candidates else (mainte_date + datetime.timedelta(days=14))
+                    if not mainte2_candidates:
+                        # メンテ関連語を伴わない「限定募集開始」等の記述もフォールバックで拾う
+                        mainte2_candidates = extract_gacha_switch_dates(
+                            live_html, after_date=mainte_date + datetime.timedelta(days=1), within_days=20
+                        )
+                    mainte2_date = mainte2_candidates[0] if mainte2_candidates else (mainte_date + datetime.timedelta(days=11))
                     html = insert_anniv_entry(html, live_date, b["time"], b["title"], mainte_date, mainte2_date)
                     existing_live_dates.add(b["date"])
                 else:

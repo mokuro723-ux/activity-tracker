@@ -777,10 +777,10 @@ const BA_LIVE_HISTORY = [
   { label:"5周年後夜祭",     date:"2026-01-19", time:null,    note:"らいぶ最終日翌日",                                  type:"kouyasai" },
   { label:"5周年メンテ",     date:"2026-01-20", time:"11:00", note:"らいぶから2日後（火）",                             type:"mainte" },
   { label:"5周年大型メンテ",  date:"2026-02-03", time:"11:00", note:"推定（1回目メンテ+14日）※1/29にフェスガチャ切替あり",  type:"mainte2" },
-  { label:"ブルアカらいぶ 2026-07-26", date:"2026-07-26", time:"15:00", note:"自動取得", type:"live" },
-  { label:"ブルアカらいぶ 2026-07-26後夜祭", date:"2026-07-27", time:null, note:"らいぶ翌日", type:"kouyasai" },
-  { label:"ブルアカらいぶ 2026-07-26メンテ", date:"2026-07-29", time:"11:00", note:"らいぶから3日後（水）自動取得", type:"mainte" },
-  { label:"ブルアカらいぶ 2026-07-26大型メンテ", date:"2026-08-05", time:"11:00", note:"メンテから7日後（水）自動取得・推定含む", type:"mainte2" },
+  { label:"5.5周年",        date:"2026-07-26", time:"19:00", note:"夏のブルアカらいぶ！ほっと！ほったー！！ほってすと！！！SP（前座含め15:00〜7時間超）", type:"live" },
+  { label:"5.5周年後夜祭",   date:"2026-07-27", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"5.5周年メンテ",   date:"2026-07-29", time:"11:00", note:"らいぶから3日後（水）・実データ確認済み",             type:"mainte" },
+  { label:"5.5周年大型メンテ",date:"2026-08-05", time:"11:00", note:"メンテから7日後（水）・実データ確認済み・記念限定募集開始", type:"mainte2" },
 ];
 
 // 通常ブルアカらいぶ（周年・ハーフを除く定期放送）
@@ -798,7 +798,6 @@ const BA_REGULAR_HISTORY = [
   { label:"2025/12/20 くりぱSP",           liveDate:"2025-12-20", mainteDate:"2025-12-24", offset:4,  liveTime:"19:00" },
   { label:"2026/04/19 すぷりんぐふぃーばーSP", liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
   { label:"2026/06/20 ざ☆すたーとおぶさまーSP", liveDate:"2026-06-20", mainteDate:"2026-06-24", offset:4,  liveTime:"19:00" },
-  { label:"2026/08/26 ブルアカらいぶ！", liveDate:"2026-08-26", mainteDate:"2026-08-26", offset:0, liveTime:"23:59" },
 ];
 
 // 定期メンテ実績（日付のみ・BA_REGULAR_HISTORYに紐付かない単発の確認済みメンテ日）
@@ -812,18 +811,6 @@ const BA_REGULAR_MAINTE_EXTRA = [
   "2026-04-01", // 水（14日間隔）
   "2026-05-27", // 水
   "2026-07-08", // 水
-  "2026-02-10",
-  "2026-02-11",
-  "2026-03-08",
-  "2026-03-22",
-  "2026-03-23",
-  "2026-04-29",
-  "2026-07-29",
-  "2026-08-05",
-  "2026-08-12",
-  "2026-12-24",
-  "2026-12-27",
-  "2026-12-28",
 ];
 // 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分、重複排除・ソート済み）
 function getAllRegularMainteDates(){
@@ -925,11 +912,12 @@ function renderBAHistoryAnniv(){
     }
   });
   const avgM2 = m2Offsets.length ? Math.round(m2Offsets.reduce((a,b)=>a+b)/m2Offsets.length) : 14;
+  const m2Range = m2Offsets.length ? `${Math.min(...m2Offsets)}〜${Math.max(...m2Offsets)}日` : '';
 
   document.getElementById('ba-pattern-content').innerHTML =
     summarize(janLive,'周年（1月・全期間参考）') + '<br>' +
     summarize(julLive,'.5周年（7月・全期間参考）') + '<br>' +
-    `<b>大型メンテ</b>：1回目メンテから平均 <b>+${avgM2}日後</b>（${m2.length}回実績）` + '<br>' +
+    `<b>大型メンテ</b>：1回目メンテから平均 <b>+${avgM2}日後</b>（${m2.length}回実績・幅${m2Range}）` + '<br>' +
     `<span style="font-size:12px;color:var(--muted);">※第N週=その月の1日から数えて何番目の週か。実際の予測（来月予報）は直近2年分のデータを優先して算出します。</span>`;
 }
 
@@ -1087,14 +1075,24 @@ function renderBANextMonth(){
       });
       const topM1Dow = m1DowCounts&&Object.keys(m1DowCounts).length ? +Object.entries(m1DowCounts).sort((a,b)=>b[1]-a[1])[0][0] : 1;
 
-      // 大型メンテ実績
+      // 大型メンテ実績（直近ほど重みを大きくする。5.5周年で+7日という短縮パターンが
+      // 新たに観測されたため、単純平均ではなく直近優先で反映する）
       const m2s = BA_LIVE_HISTORY.filter(x=>x.type==='mainte2'&&(isSummer?new Date(x.date+"T00:00:00").getMonth()>=6:new Date(x.date+"T00:00:00").getMonth()<=1));
       const m2Offsets2 = m2s.map(m=>{
         const prefix=m.label.replace('大型メンテ','メンテ');
         const m1=BA_LIVE_HISTORY.find(x=>x.type==='mainte'&&x.label===prefix);
         return m1?(new Date(m.date+"T00:00:00")-new Date(m1.date+"T00:00:00"))/86400000:14;
       });
-      const avgM2 = m2Offsets2.length ? Math.round(m2Offsets2.reduce((a,b)=>a+b)/m2Offsets2.length) : 14;
+      let avgM2 = 14;
+      if(m2Offsets2.length){
+        let wsum=0, wtotal=0;
+        m2Offsets2.forEach((off,i)=>{
+          const fromEnd = m2Offsets2.length-1-i;
+          const w = fromEnd===0 ? 3 : fromEnd===1 ? 2 : 1;
+          wsum += off*w; wtotal += w;
+        });
+        avgM2 = Math.round(wsum/wtotal);
+      }
       const m2DowCounts={};
       m2s.forEach((m,i)=>{
         const d=new Date(m.date+"T00:00:00").getDay();
