@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -146,6 +149,7 @@
 <header class="app">
   <h1>活動トラッカー</h1>
   <p>推しの配信・動画スケジュールを把握して有給を計画</p>
+  <p id="build-info" style="font-size:10px;opacity:.5;margin-top:2px;"></p>
 </header>
 
 <div class="wrap">
@@ -331,6 +335,15 @@
 
 <script>
 "use strict";
+
+// このファイルの最終更新日（デプロイのたびに更新すること）。
+// 画面下部に小さく表示することで、実機で開いた内容が最新版かどうかを
+// キャッシュに惑わされず目視確認できるようにする。
+const BUILD_DATE = "2026-08-14";
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('build-info');
+  if(el) el.textContent = `build: ${BUILD_DATE}`;
+});
 
 /* ---------- 安全なローカル保存（ファイル/ホーム画面では有効、サンドボックスでは自動的に無効化） ---------- */
 const store = {
@@ -812,10 +825,13 @@ const BA_REGULAR_MAINTE_EXTRA = [
   "2026-05-27", // 水
   "2026-07-08", // 水
 ];
-// 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分、重複排除・ソート済み）
+// 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分 + 周年系メンテ実績、重複排除・ソート済み）
+// ※ BA_LIVE_HISTORY内のmainte/mainte2（周年・ハーフ周年時のメンテ）も
+//   実際にメンテが行われた日という点では同じなので、周期・曜日の予測材料に含める
 function getAllRegularMainteDates(){
   const fromHistory = BA_REGULAR_HISTORY.map(x=>x.mainteDate);
-  const merged = Array.from(new Set([...fromHistory, ...BA_REGULAR_MAINTE_EXTRA]));
+  const fromAnniv = BA_LIVE_HISTORY.filter(x=>x.type==='mainte'||x.type==='mainte2').map(x=>x.date);
+  const merged = Array.from(new Set([...fromHistory, ...BA_REGULAR_MAINTE_EXTRA, ...fromAnniv]));
   return merged.sort();
 }
 

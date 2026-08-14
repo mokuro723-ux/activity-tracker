@@ -539,9 +539,18 @@ def main():
 
     # ── 保存 ──
     if added > 0:
+        # データを実際に変更した場合のみ、画面表示用のビルド日付も今日の日付に更新する
+        # （index.html側でこの値を画面下部に小さく表示し、実機がキャッシュで
+        #   古い内容を表示していないかを目視確認できるようにしている）
+        today_str = fmt(datetime.date.today())
+        html = re.sub(
+            r'const BUILD_DATE = "[\d-]+";',
+            f'const BUILD_DATE = "{today_str}";',
+            html
+        )
         with open(INDEX_HTML, "w", encoding="utf-8") as f:
             f.write(html)
-        print(f"\n=== 更新完了：{added}件の変更を{INDEX_HTML}に反映 ===")
+        print(f"\n=== 更新完了：{added}件の変更を{INDEX_HTML}に反映（BUILD_DATE: {today_str}） ===")
     else:
         print("\n=== 新規データなし。更新はスキップされました ===")
 
