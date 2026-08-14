@@ -798,7 +798,6 @@ const BA_REGULAR_HISTORY = [
   { label:"2025/12/20 くりぱSP",           liveDate:"2025-12-20", mainteDate:"2025-12-24", offset:4,  liveTime:"19:00" },
   { label:"2026/04/19 すぷりんぐふぃーばーSP", liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
   { label:"2026/06/20 ざ☆すたーとおぶさまーSP", liveDate:"2026-06-20", mainteDate:"2026-06-24", offset:4,  liveTime:"19:00" },
-  { label:"2026/08/26 ブルアカらいぶ！", liveDate:"2026-08-26", mainteDate:"2026-08-26", offset:0, liveTime:"23:59" },
 ];
 
 // 定期メンテ実績（日付のみ・BA_REGULAR_HISTORYに紐付かない単発の確認済みメンテ日）
@@ -812,20 +811,6 @@ const BA_REGULAR_MAINTE_EXTRA = [
   "2026-04-01", // 水（14日間隔）
   "2026-05-27", // 水
   "2026-07-08", // 水
-  "2026-02-10",
-  "2026-02-11",
-  "2026-03-08",
-  "2026-03-22",
-  "2026-03-23",
-  "2026-04-29",
-  "2026-07-29",
-  "2026-08-05",
-  "2026-08-12",
-  "2026-08-19",
-  "2026-08-26",
-  "2026-12-24",
-  "2026-12-27",
-  "2026-12-28",
 ];
 // 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分、重複排除・ソート済み）
 function getAllRegularMainteDates(){
@@ -855,7 +840,11 @@ function renderBAHistoryAnniv(){
   const ul = document.getElementById('ba-history-list');
   if(ul.children.length > 0) return;
 
-  BA_LIVE_HISTORY.forEach(item => {
+  // 表示は新しい順（降順）。BA_LIVE_HISTORY自体は古い順に定義されているため、
+  // 表示直前にコピーして日付降順に並べ替える（元データの並びには影響しない）
+  const sortedHistory = [...BA_LIVE_HISTORY].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  sortedHistory.forEach(item => {
     const li = document.createElement('li');
     const dc = dowCls(item.date);
     const dj = dowStr(item.date);
@@ -941,7 +930,10 @@ function renderBAHistoryRegular(){
   const ul = document.getElementById('ba-regular-list');
   if(ul.children.length > 0) return;
 
-  BA_REGULAR_HISTORY.forEach(item => {
+  // 表示は新しい順（降順）。元データの並びには影響しない
+  const sortedRegular = [...BA_REGULAR_HISTORY].sort((a,b) => new Date(b.liveDate) - new Date(a.liveDate));
+
+  sortedRegular.forEach(item => {
     const ld = new Date(item.liveDate+"T00:00:00");
     const md = new Date(item.mainteDate+"T00:00:00");
     const ldc = dowCls(item.liveDate), ldj = dowStr(item.liveDate);
@@ -1203,7 +1195,15 @@ function renderBAMainte(){
   if(el.innerHTML) return;
 
   // 最後のメンテ日から次回を予測
-  const sorted = getAllRegularMainteDates();
+  // 安全ガード：万が一データに今日より未来の日付が実績として混入していた場合、
+  // それは「実績」ではなく異常値なので除外する（実績は必ず過去日のはず）
+  const _today = new Date();
+  const todayStr = `${_today.getFullYear()}-${String(_today.getMonth()+1).padStart(2,'0')}-${String(_today.getDate()).padStart(2,'0')}`;
+  const sorted = getAllRegularMainteDates().filter(d => d <= todayStr);
+  if(sorted.length === 0){
+    el.innerHTML = '<div style="color:var(--muted);">メンテ実績データがありません。</div>';
+    return;
+  }
   const lastDateStr = sorted[sorted.length-1];
   const lastDate = new Date(lastDateStr+"T00:00:00");
 
