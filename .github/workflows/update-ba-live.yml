@@ -46,12 +46,11 @@ jobs:
           if git diff --cached --quiet; then
             echo "変更なし・スキップ"
           else
+            git fetch origin main
+            git reset --soft origin/main
+            git add index.html
             git commit -m "🤖 ブルアカらいぶ データ自動更新 $(date +'%Y-%m-%d')"
-            # リモート側が自分より進んでいる場合（前回実行の取りこぼし、
-            # 手動編集との競合など）に備え、pushの前に必ず最新を取り込んでおく。
-            # これをしないと「Re-run」実行時などに毎回 rejected で失敗し続ける。
-            git pull --rebase origin main
-            git push
+            git push origin HEAD:main
           fi
 
       - name: ログファイルを削除（コミットしない）
