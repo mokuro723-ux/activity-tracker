@@ -339,7 +339,7 @@
 // このファイルの最終更新日（デプロイのたびに更新すること）。
 // 画面下部に小さく表示することで、実機で開いた内容が最新版かどうかを
 // キャッシュに惑わされず目視確認できるようにする。
-const BUILD_DATE = "2026-08-14";
+const BUILD_DATE = "2026-08-31";
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('build-info');
   if(el) el.textContent = `build: ${BUILD_DATE}`;
@@ -839,6 +839,9 @@ const BA_REGULAR_MAINTE_EXTRA = [
   "2026-12-24",
   "2026-12-27",
   "2026-12-28",
+  "2026-09-09",
+  "2027-02-10",
+  "2027-02-11",
 ];
 // 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分 + 周年系メンテ実績、重複排除・ソート済み）
 // ※ BA_LIVE_HISTORY内のmainte/mainte2（周年・ハーフ周年時のメンテ）も
