@@ -636,14 +636,11 @@ function renderYouTube(){
 
 function copyYouTube(){
   const arr = ytData[currentKind];
-  const year = document.getElementById('yt-year').value;
-  const month = document.getElementById('yt-month').value;
-  const head = `【${year}年${month}月 ${currentKind==='live'?'配信':'動画'}一覧（JST）】\n`;
   const lines = arr.map(e=>{
-    const base = `${fmtDate(e.parts)}(${DOW[e.parts.dow]}) ${fmtTime(e.parts)}${e.isUpcoming?'〜予定':''}`;
+    const base = `${e.parts.d}日(${DOW[e.parts.dow]}) ${fmtTime(e.parts)}${e.isUpcoming?'〜予定':''}`;
     return `${base}  ${e.title}`;
   });
-  const text = head + (lines.length?lines.join('\n'):'（なし）');
+  const text = lines.length?lines.join('\n'):'（なし）';
   copyText(text, 'yt-copy', currentKind);
 }
 
