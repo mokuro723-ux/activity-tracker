@@ -751,6 +751,39 @@ function nearestDowInRange(y, m1, baseDay, prefDow){
   )[0];
 }
 
+// ─── 直近優先の重み付け集計（周年・通常らいぶ・月次メンテ予測で共通利用） ─────
+// 配列の末尾（＝最新）ほど重みを大きくする。統一ルール：直近1件=3倍、2件目=2倍、それ以外=1倍。
+// 過去、この重み付けが実装ごとにバラバラだったことが「最頻値が実態と合わない」
+// バグの温床になっていたため、判定ロジックを1箇所に集約している。
+function recencyWeight(index, length){
+  const fromEnd = length - 1 - index;
+  return fromEnd === 0 ? 3 : fromEnd === 1 ? 2 : 1;
+}
+// arr の各要素から keyFn(item) でキーを取り、直近優先の重み付き集計をして
+// 最頻キーを求める。キーは数値・文字列どちらでも可（呼び出し側で必要なら数値化する）。
+// 集計内訳も第2戻り値で返す。
+function weightedTopKey(arr, keyFn){
+  const counts = {};
+  arr.forEach((item, i) => {
+    const key = keyFn(item);
+    const w = recencyWeight(i, arr.length);
+    counts[key] = (counts[key] || 0) + w;
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  return { top: sorted[0][0], counts };
+}
+// arr の各要素から valueFn(item) で数値を取り、直近優先の重み付き平均を返す。
+function weightedAverage(arr, valueFn){
+  if(!arr.length) return null;
+  let wsum = 0, wtotal = 0;
+  arr.forEach((item, i) => {
+    const w = recencyWeight(i, arr.length);
+    wsum += valueFn(item) * w;
+    wtotal += w;
+  });
+  return Math.round(wsum / wtotal);
+}
+
 // ─── データ ───────────────────────────────────────────────
 // type: live / kouyasai / mainte / mainte2（2回目大型）
 const BA_LIVE_HISTORY = [
@@ -1015,20 +1048,12 @@ function renderBANextMonth(){
     const recentOnly = sameMonthAll.filter(x=>new Date(x.date+"T00:00:00") >= RECENT_YEARS_CUTOFF);
     const targetLive = recentOnly.length >= 3 ? recentOnly : sameMonthAll.slice(-3);
 
-    // 週・曜日・時刻の集計は直近ほど重みを大きくする（直近1件は3倍、2件目は2倍）
-    const wc={}, dc={}, tc={};
-    targetLive.forEach((x,i)=>{
-      const fromEnd = targetLive.length-1-i;
-      const w = fromEnd===0 ? 3 : fromEnd===1 ? 2 : 1;
-      const wn = weekOfMonth(x.date);
-      const dn = new Date(x.date+"T00:00:00").getDay();
-      wc[wn]=(wc[wn]||0)+w;
-      dc[dn]=(dc[dn]||0)+w;
-      tc[x.time]=(tc[x.time]||0)+w;
-    });
-    const topW = +Object.entries(wc).sort((a,b)=>b[1]-a[1])[0][0];
-    const topD = +Object.entries(dc).sort((a,b)=>b[1]-a[1])[0][0];
-    const topT = Object.entries(tc).sort((a,b)=>b[1]-a[1])[0][0];
+    // 週・曜日・時刻の最頻値は直近ほど重みを大きくして算出する
+    const weekStats = weightedTopKey(targetLive, x=>weekOfMonth(x.date));
+    const dowStats  = weightedTopKey(targetLive, x=>new Date(x.date+"T00:00:00").getDay());
+    const topW = +weekStats.top;
+    const topD = +dowStats.top;
+    const topT = weightedTopKey(targetLive, x=>x.time).top;
 
     // 本命・候補（週±1、曜日は隣接2つも含めて幅広く候補を出す）
     const candidates=[];
@@ -1037,7 +1062,7 @@ function renderBANextMonth(){
     weekOptions.forEach(wn=>{
       dowOptions.forEach(dn=>{
         const d=getNthWeekday(nextYear,nextMonth,wn,dn);
-        if(d) candidates.push({day:d,dow:dn,week:wn,score:(wc[wn]||0)*2+(dc[dn]||0)});
+        if(d) candidates.push({day:d,dow:dn,week:wn,score:(weekStats.counts[wn]||0)*2+(dowStats.counts[dn]||0)});
       });
     });
     // 重複除去（同じdayが複数候補から生成されることがあるため）
@@ -1086,14 +1111,8 @@ function renderBANextMonth(){
         const live = BA_LIVE_HISTORY.filter(x=>x.type==='live'&&x.label.startsWith(m.label.replace('メンテ',''))).pop();
         return live ? (new Date(m.date+"T00:00:00")-new Date(live.date+"T00:00:00"))/86400000 : 2;
       });
-      const avgM1 = m1Offsets.length ? Math.round(m1Offsets.reduce((a,b)=>a+b)/m1Offsets.length) : 2;
-      const m1DowCounts={};
-      m1s.forEach((m,i)=>{
-        const d=new Date(m.date+"T00:00:00").getDay();
-        const w = i >= m1s.length-2 ? 2 : 1; // 直近2件を2倍重み
-        m1DowCounts[d]=(m1DowCounts[d]||0)+w;
-      });
-      const topM1Dow = m1DowCounts&&Object.keys(m1DowCounts).length ? +Object.entries(m1DowCounts).sort((a,b)=>b[1]-a[1])[0][0] : 1;
+      const avgM1 = weightedAverage(m1Offsets, x=>x) ?? 2;
+      const topM1Dow = m1s.length ? +weightedTopKey(m1s, m=>new Date(m.date+"T00:00:00").getDay()).top : 1;
 
       // 大型メンテ実績（直近ほど重みを大きくする。5.5周年で+7日という短縮パターンが
       // 新たに観測されたため、単純平均ではなく直近優先で反映する）
@@ -1103,23 +1122,8 @@ function renderBANextMonth(){
         const m1=BA_LIVE_HISTORY.find(x=>x.type==='mainte'&&x.label===prefix);
         return m1?(new Date(m.date+"T00:00:00")-new Date(m1.date+"T00:00:00"))/86400000:14;
       });
-      let avgM2 = 14;
-      if(m2Offsets2.length){
-        let wsum=0, wtotal=0;
-        m2Offsets2.forEach((off,i)=>{
-          const fromEnd = m2Offsets2.length-1-i;
-          const w = fromEnd===0 ? 3 : fromEnd===1 ? 2 : 1;
-          wsum += off*w; wtotal += w;
-        });
-        avgM2 = Math.round(wsum/wtotal);
-      }
-      const m2DowCounts={};
-      m2s.forEach((m,i)=>{
-        const d=new Date(m.date+"T00:00:00").getDay();
-        const w = i >= m2s.length-2 ? 2 : 1; // 直近2件を2倍重み
-        m2DowCounts[d]=(m2DowCounts[d]||0)+w;
-      });
-      const topM2Dow = Object.keys(m2DowCounts).length ? +Object.entries(m2DowCounts).sort((a,b)=>b[1]-a[1])[0][0] : 3; // データなければ水曜デフォルト
+      const avgM2 = weightedAverage(m2Offsets2, x=>x) ?? 14;
+      const topM2Dow = m2s.length ? +weightedTopKey(m2s, m=>new Date(m.date+"T00:00:00").getDay()).top : 3; // データなければ水曜デフォルト
 
       const kouyasaiDay = Math.min(mainDay+1, last);
       const m1Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, mainDay+avgM1), topM1Dow);
@@ -1159,34 +1163,22 @@ function renderBANextMonth(){
 
     // 「第何週の何曜日」を組み合わせ単位で集計する（週と曜日を別々に最頻値化すると
     // 実在しない組み合わせが選ばれるリスクがあるため、組み合わせごとに数える）
-    const comboCounts={};
-    regularForStats.forEach((x,i)=>{
-      const d=new Date(x.liveDate+"T00:00:00");
-      const key = `${weekOfMonth(x.liveDate)}-${d.getDay()}`;
-      const w = i >= regularForStats.length-3 ? 2 : 1; // 直近3件を2倍重み
-      comboCounts[key] = (comboCounts[key]||0) + w;
+    const comboStats = weightedTopKey(regularForStats, x=>{
+      const d = new Date(x.liveDate+"T00:00:00");
+      return `${weekOfMonth(x.liveDate)}-${d.getDay()}`;
     });
-    const topCombo = Object.entries(comboCounts).sort((a,b)=>b[1]-a[1])[0][0];
-    const [topLW, topLD] = topCombo.split('-').map(Number);
+    const [topLW, topLD] = comboStats.top.split('-').map(Number);
 
     const liveDay = getNthWeekday(nextYear,nextMonth,topLW,topLD) ||
                     getNthWeekday(nextYear,nextMonth,topLW-1,topLD);
     if(liveDay){
       const liveDow=DOW_JP[new Date(nextYear,nextMonth-1,liveDay).getDay()];
 
-      const offsets=regularForStats.map(x=>x.offset);
-      const avgOff=Math.round(offsets.reduce((a,b)=>a+b)/offsets.length);
-      // メンテ曜日の集計は直近ほど重みを大きくする（直近1件は3倍、2件目は2倍）。
-      // 単純カウントだと同点になりやすく、その場合どの曜日が選ばれるかが
-      // オブジェクトのキー追加順に依存して不安定になるため、直近を強めに優先して決着させる。
-      const mDowCounts={};
-      regularForStats.forEach((x,i)=>{
-        const d=new Date(x.mainteDate+"T00:00:00").getDay();
-        const fromEnd = regularForStats.length-1-i;
-        const w = fromEnd===0 ? 3 : fromEnd===1 ? 2 : 1;
-        mDowCounts[d]=(mDowCounts[d]||0)+w;
-      });
-      const topMD=+Object.entries(mDowCounts).sort((a,b)=>b[1]-a[1])[0][0];
+      const avgOff = weightedAverage(regularForStats, x=>x.offset);
+      // メンテ曜日の集計は直近ほど重みを大きくする。単純カウントだと同点になりやすく、
+      // その場合どの曜日が選ばれるかがオブジェクトのキー追加順に依存して不安定になるため、
+      // 直近を強めに優先して決着させる（共通ルール：直近1件=3倍、2件目=2倍）。
+      const topMD = +weightedTopKey(regularForStats, x=>new Date(x.mainteDate+"T00:00:00").getDay()).top;
       const mDay = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, liveDay+avgOff), topMD);
       const mDow=DOW_JP[new Date(nextYear,nextMonth-1,mDay).getDay()];
 
@@ -1240,7 +1232,10 @@ function renderBAMainte(){
   const intervals = intervalsRaw.filter(x=>x<=25);
   const avgInterval = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b)/intervals.length) : 14;
 
-  // 曜日の最頻値（直近ほど重みを大きく：直近5件は3倍、直近6-10件は2倍、それ以前は1倍）
+  // 曜日の最頻値（直近ほど重みを大きく：直近5件は3倍、直近6-10件は2倍、それ以前は1倍）。
+  // ※ここだけ recencyWeight() の統一ルール（直近1件のみ3倍）を使わず独自の重み方式にしている。
+  //   このデータは全期間で30件超と母数が多く、直近1件だけを特別視すると
+  //   1件の外れ値（臨時メンテ等）に予測が引っ張られやすいため、直近5件をまとめて優遇する方式が適切。
   const dowCounts2={};
   sorted.forEach((s,i)=>{
     const d=new Date(s+"T00:00:00").getDay();
