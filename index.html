@@ -61,6 +61,7 @@
   .chip{border:1px solid var(--line);background:#fbfbfc;color:var(--ink);border-radius:999px;
     padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer;}
   .chip:active{background:#eef0f4;}
+  .chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
   label.check{display:flex;gap:9px;align-items:flex-start;margin:2px 0 13px;font-size:13px;color:var(--ink);cursor:pointer;}
   label.check input{width:auto;margin-top:2px;flex:0 0 auto;}
   label.check span{color:var(--muted);line-height:1.45;}
@@ -165,7 +166,8 @@
     <div class="card">
       <h2>検索条件</h2>
       <div class="chips">
-        <button type="button" class="chip" onclick="usePreset('@sana_natori', false)">名取さな</button>
+        <button type="button" class="chip" id="oshi-chip-natori" onclick="selectOshi('natori')" aria-pressed="true">名取さな</button>
+        <button type="button" class="chip" id="oshi-chip-shigure" onclick="selectOshi('shigure')" aria-pressed="false">しぐれうい</button>
       </div>
       <label class="field">
         <span>チャンネル（@ハンドル / URL / チャンネルID）</span>
@@ -235,6 +237,10 @@
         指定アカウントの投稿を「その月の1日〜翌月1日」かつ「キーワードのいずれかを含む」で絞り込む検索文を作ります。
         作った検索文はXの検索窓に貼るか、下のボタンでそのまま開けます。
       </p>
+      <div class="chips">
+        <button type="button" class="chip" id="oshi-chip-tw-natori" onclick="selectOshi('natori')" aria-pressed="true">名取さな</button>
+        <button type="button" class="chip" id="oshi-chip-tw-shigure" onclick="selectOshi('shigure')" aria-pressed="false">しぐれうい</button>
+      </div>
       <label class="field">
         <span>アカウント（@は省略可）</span>
         <input id="tw-acct" type="text" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="sana_natori" />
@@ -339,7 +345,7 @@
 // このファイルの最終更新日（デプロイのたびに更新すること）。
 // 画面下部に小さく表示することで、実機で開いた内容が最新版かどうかを
 // キャッシュに惑わされず目視確認できるようにする。
-const BUILD_DATE = "2026-09-14";
+const BUILD_DATE = "2026-08-14";
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('build-info');
   if(el) el.textContent = `build: ${BUILD_DATE}`;
@@ -363,10 +369,38 @@ function parseDuration(iso){
 }
 
 // チャンネルのワンタップ選択
+// 推し（人物）ごとのプリセット。ここに追加すればチップも自動で対応する運用ではなく、
+// HTML側のチップとこのオブジェクトのキーを対応させる方式（シンプルさ優先）。
+const OSHI_PRESETS = {
+  natori:  { label:"名取さな", ytHandle:"@sana_natori",  liveOnly:false, twAcct:"sana_natori" },
+  shigure: { label:"しぐれうい", ytHandle:"@ui_shig",      liveOnly:false, twAcct:"ui_shig" },
+};
+
 function usePreset(handle, liveOnly){
   document.getElementById('yt-channel').value = handle;
   document.getElementById('yt-premiere').checked = !!liveOnly;
   store.set('yt_channel', handle);
+}
+
+// 推しチップを押したとき：YouTube欄・X欄の両方を一括で切り替える。
+// どちらのタブから押しても、もう片方のタブに切り替えたときには
+// 既にそのタブの入力欄も埋まっている状態になる。
+function selectOshi(key){
+  const preset = OSHI_PRESETS[key];
+  if(!preset) return;
+  usePreset(preset.ytHandle, preset.liveOnly);
+  document.getElementById('tw-acct').value = preset.twAcct;
+  store.set('tw_acct', preset.twAcct);
+  store.set('oshi_selected', key);
+
+  // 両タブのチップ選択状態を同期（見た目のON/OFF切り替え）
+  Object.keys(OSHI_PRESETS).forEach(k=>{
+    const pressed = (k === key);
+    ['oshi-chip-'+k, 'oshi-chip-tw-'+k].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.setAttribute('aria-pressed', pressed);
+    });
+  });
 }
 
 /* ---------- 年/月セレクトの初期化 ---------- */
@@ -395,6 +429,18 @@ function usePreset(handle, liveOnly){
   if(savedAcct) document.getElementById('tw-acct').value = savedAcct;
   const savedKw = store.get('tw_keywords');
   if(savedKw) document.getElementById('tw-keywords').value = savedKw;
+
+  // 前回選択した推しのチップ見た目を復元（入力欄の値自体は上のsavedCh/savedAcctで復元済み）
+  const savedOshi = store.get('oshi_selected');
+  if(savedOshi && OSHI_PRESETS[savedOshi]){
+    Object.keys(OSHI_PRESETS).forEach(k=>{
+      const pressed = (k === savedOshi);
+      ['oshi-chip-'+k, 'oshi-chip-tw-'+k].forEach(id=>{
+        const el = document.getElementById(id);
+        if(el) el.setAttribute('aria-pressed', pressed);
+      });
+    });
+  }
 })();
 
 function isoLocalDate(d){
@@ -841,7 +887,6 @@ const BA_REGULAR_HISTORY = [
   { label:"2025/12/20 くりぱSP",           liveDate:"2025-12-20", mainteDate:"2025-12-24", offset:4,  liveTime:"19:00" },
   { label:"2026/04/19 すぷりんぐふぃーばーSP", liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
   { label:"2026/06/20 ざ☆すたーとおぶさまーSP", liveDate:"2026-06-20", mainteDate:"2026-06-24", offset:4,  liveTime:"19:00" },
-  { label:"2026/08/26 ブルアカらいぶ！", liveDate:"2026-08-26", mainteDate:"2026-08-26", offset:0, liveTime:"23:59" },
 ];
 
 // 定期メンテ実績（日付のみ・BA_REGULAR_HISTORYに紐付かない単発の確認済みメンテ日）
@@ -855,20 +900,6 @@ const BA_REGULAR_MAINTE_EXTRA = [
   "2026-04-01", // 水（14日間隔）
   "2026-05-27", // 水
   "2026-07-08", // 水
-  "2026-03-08",
-  "2026-03-22",
-  "2026-03-23",
-  "2026-04-29",
-  "2026-07-29",
-  "2026-08-05",
-  "2026-08-26",
-  "2026-09-09",
-  "2026-09-23",
-  "2026-12-24",
-  "2026-12-27",
-  "2026-12-28",
-  "2027-02-10",
-  "2027-02-11",
 ];
 // 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分 + 周年系メンテ実績、重複排除・ソート済み）
 // ※ BA_LIVE_HISTORY内のmainte/mainte2（周年・ハーフ周年時のメンテ）も
