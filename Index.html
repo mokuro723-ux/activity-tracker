@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="活動トラッカー" />
+<title>活動トラッカー</title>
+<style>
+  :root{
+    --bg:#f3f4f7;
+    --surface:#ffffff;
+    --ink:#181c24;
+    --muted:#697184;
+    --line:#e4e6ec;
+    --live:#e23b2e;       /* 配信＝放送の赤 */
+    --video:#2f6f8f;      /* 動画＝落ち着いた青 */
+    --note:#7a5cc7;       /* Twitterメモ＝紫 */
+    --header:#14171f;
+    --ok:#1f9d63;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(20,23,31,.06), 0 6px 18px rgba(20,23,31,.05);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;
+    font-size:16px;line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:680px;margin:0 auto;padding:0 14px calc(40px + env(safe-area-inset-bottom));}
+  header.app{
+    background:var(--header);color:#fff;
+    padding:calc(14px + env(safe-area-inset-top)) 16px 14px;
+    position:sticky;top:0;z-index:20;
+  }
+  header.app h1{font-size:18px;margin:0;letter-spacing:.04em;font-weight:700;}
+  header.app p{margin:4px 0 0;font-size:12.5px;color:#aeb4c2;letter-spacing:.02em;}
+
+  /* 最上位タブ */
+  .toptabs{display:flex;gap:6px;margin:14px 0;}
+  .toptabs button{
+    flex:1;border:1px solid var(--line);background:var(--surface);color:var(--muted);
+    padding:11px 8px;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;
+  }
+  .toptabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:14px;margin-bottom:14px;}
+  .card h2{font-size:13px;letter-spacing:.06em;text-transform:none;color:var(--muted);margin:0 0 10px;font-weight:700;}
+
+  label.field{display:block;margin-bottom:11px;}
+  label.field span{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .chip{border:1px solid var(--line);background:#fbfbfc;color:var(--ink);border-radius:999px;
+    padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer;}
+  .chip:active{background:#eef0f4;}
+  .chip[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
+  label.check{display:flex;gap:9px;align-items:flex-start;margin:2px 0 13px;font-size:13px;color:var(--ink);cursor:pointer;}
+  label.check input{width:auto;margin-top:2px;flex:0 0 auto;}
+  label.check span{color:var(--muted);line-height:1.45;}
+  input,select,textarea{
+    width:100%;font:inherit;color:var(--ink);background:#fbfbfc;
+    border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+  }
+  textarea{resize:vertical;min-height:64px;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--ink);outline-offset:1px;border-color:transparent;}
+  .row{display:flex;gap:10px;}
+  .row > *{flex:1;}
+
+  .keyrow{position:relative;}
+  .keyrow .toggle{position:absolute;right:8px;top:32px;background:none;border:none;color:var(--muted);
+    font-size:12.5px;font-weight:600;cursor:pointer;padding:6px;}
+
+  button.primary{
+    width:100%;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:700;
+    background:var(--live);color:#fff;cursor:pointer;letter-spacing:.03em;
+  }
+  button.primary:disabled{opacity:.5;}
+  button.ghost{
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    border-radius:10px;padding:9px 12px;font-size:13.5px;font-weight:600;cursor:pointer;
+  }
+
+  /* サブタブ（配信/動画） */
+  .subtabs{display:flex;gap:6px;margin-bottom:12px;}
+  .subtabs button{flex:1;border:1px solid var(--line);background:var(--surface);
+    padding:10px;border-radius:10px;font-weight:700;font-size:14px;color:var(--muted);cursor:pointer;}
+  .subtabs button[data-kind="live"][aria-selected="true"]{background:var(--live);color:#fff;border-color:var(--live);}
+  .subtabs button[data-kind="video"][aria-selected="true"]{background:var(--video);color:#fff;border-color:var(--video);}
+  /* ブルアカ内サブタブ（汎用選択済み） */
+  #panel-ba .subtabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .count{font-variant-numeric:tabular-nums;opacity:.85;font-weight:600;}
+
+  .resulthead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;}
+  .resulthead .label{font-size:13px;color:var(--muted);font-weight:700;}
+
+  ul.list{list-style:none;margin:0;padding:0;}
+  ul.list li{padding:11px 0;border-top:1px solid var(--line);}
+  ul.list li:first-child{border-top:none;}
+  .item-top{display:flex;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums;}
+  .date{font-weight:700;font-size:14.5px;white-space:nowrap;}
+  .dow{font-size:13px;color:var(--muted);}
+  .dow.sun{color:var(--live);} .dow.sat{color:var(--video);}
+  .time{margin-left:auto;font-weight:700;font-size:14.5px;white-space:nowrap;}
+  .time.live{color:var(--live);} .time.video{color:var(--video);} .time.note{color:var(--note);}
+  .title{margin-top:3px;font-size:14.5px;word-break:break-word;}
+  .meta{margin-top:3px;font-size:12px;color:var(--muted);}
+  .meta a{color:var(--video);}
+
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:22px 8px;}
+  .status{font-size:13.5px;margin:6px 0 0;min-height:18px;}
+  .status.err{color:var(--live);} .status.ok{color:var(--ok);}
+
+  details.help{margin-top:12px;font-size:13.5px;color:var(--muted);}
+  details.help summary{cursor:pointer;font-weight:600;color:var(--ink);}
+  details.help ol{padding-left:18px;}
+  details.help a{color:var(--video);}
+  code{background:#eef0f4;border-radius:5px;padding:1px 5px;font-size:12.5px;}
+
+  .copybar{position:sticky;bottom:0;background:linear-gradient(180deg,rgba(243,244,247,0),var(--bg) 30%);
+    padding:10px 0 calc(8px + env(safe-area-inset-bottom));margin-top:6px;}
+  .copybar button{width:100%;border:none;border-radius:12px;padding:13px;font-size:15px;font-weight:700;color:#fff;cursor:pointer;}
+  .copybar button.live{background:var(--live);}
+  .copybar button.video{background:var(--video);}
+  .copybar button.note{background:var(--note);}
+
+  .delx{margin-left:auto;background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:4px 6px;}
+  .xopen{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:9px 13px;
+    font-size:13.5px;font-weight:600;color:var(--note);text-decoration:none;margin-bottom:13px;}
+  .query{background:#0f1320;color:#e9ecf5;border-radius:10px;padding:13px 14px;font-size:13.5px;
+    line-height:1.65;word-break:break-all;white-space:pre-wrap;-webkit-user-select:all;user-select:all;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;}
+  .pill.video{background:var(--video);} .pill.collab{background:#c77b1e;} .pill.other{background:var(--muted);}
+  .hide{display:none !important;}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--ink);
+    border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.spin{animation:none;}}
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>活動トラッカー</h1>
+  <p>推しの配信・動画スケジュールを把握して有給を計画</p>
+  <p id="build-info" style="font-size:10px;opacity:.5;margin-top:2px;"></p>
+</header>
+
+<div class="wrap">
+
+  <div class="toptabs" role="tablist">
+    <button id="tab-yt" role="tab" aria-selected="true" onclick="switchTop('yt')">YouTube</button>
+    <button id="tab-tw" role="tab" aria-selected="false" onclick="switchTop('tw')">Twitter / X</button>
+    <button id="tab-ba" role="tab" aria-selected="false" onclick="switchTop('ba')">ブルアカらいぶ</button>
+  </div>
+
+  <!-- ============ YouTube ============ -->
+  <section id="panel-yt">
+    <div class="card">
+      <h2>検索条件</h2>
+      <div class="chips">
+        <button type="button" class="chip" id="oshi-chip-natori" onclick="selectOshi('natori')" aria-pressed="true">名取さな</button>
+        <button type="button" class="chip" id="oshi-chip-shigure" onclick="selectOshi('shigure')" aria-pressed="false">しぐれうい</button>
+      </div>
+      <label class="field">
+        <span>チャンネル（@ハンドル / URL / チャンネルID）</span>
+        <input id="yt-channel" type="text" inputmode="url" autocapitalize="off" autocorrect="off"
+               placeholder="例：@hololive または UCxxxx... または チャンネルURL" />
+      </label>
+      <div class="row">
+        <label class="field">
+          <span>年</span>
+          <select id="yt-year"></select>
+        </label>
+        <label class="field">
+          <span>月</span>
+          <select id="yt-month"></select>
+        </label>
+      </div>
+      <label class="field keyrow">
+        <span>YouTube API キー（端末内に保存）</span>
+        <input id="yt-key" type="password" autocapitalize="off" autocorrect="off" autocomplete="off"
+               placeholder="AIza... ※下の手順で無料取得" />
+        <button type="button" class="toggle" onclick="toggleKey()">表示</button>
+      </label>
+      <label class="check">
+        <input id="yt-premiere" type="checkbox" checked />
+        <span>生放送のみ（PVのプレミア公開は配信から除外し、動画扱いにする）</span>
+      </label>
+      <button id="yt-go" class="primary" onclick="runYouTube()">この月の活動を取得</button>
+      <p id="yt-status" class="status"></p>
+
+      <details class="help">
+        <summary>APIキーの取り方（初回のみ・無料）</summary>
+        <ol>
+          <li><a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> を開く</li>
+          <li>プロジェクトを新規作成</li>
+          <li>「APIとサービス」→「ライブラリ」で <code>YouTube Data API v3</code> を有効化</li>
+          <li>「認証情報」→「認証情報を作成」→「APIキー」でキーを発行</li>
+          <li>発行された <code>AIza...</code> を上の欄に貼り付け</li>
+        </ol>
+        <p>※このファイル（ローカル）から使う場合、キーのアプリケーション制限は「なし」にしてください（HTTPリファラー制限だとブロックされます）。キーは端末内にのみ保存され、外部送信されません。</p>
+      </details>
+    </div>
+
+    <div id="yt-results" class="card hide">
+      <div class="subtabs" role="tablist">
+        <button data-kind="live" role="tab" aria-selected="true" onclick="switchKind('live')">
+          配信 <span class="count" id="cnt-live"></span>
+        </button>
+        <button data-kind="video" role="tab" aria-selected="false" onclick="switchKind('video')">
+          動画 <span class="count" id="cnt-video"></span>
+        </button>
+      </div>
+      <div class="resulthead">
+        <span class="label" id="yt-rangelabel"></span>
+      </div>
+      <ul id="yt-list" class="list"></ul>
+      <div class="copybar">
+        <button id="yt-copy" class="live" onclick="copyYouTube()">表示中の一覧をコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Twitter / X ============ -->
+  <section id="panel-tw" class="hide">
+    <div class="card">
+      <h2>X 検索クエリを作成</h2>
+      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px;">
+        指定アカウントの投稿を「その月の1日〜翌月1日」かつ「キーワードのいずれかを含む」で絞り込む検索文を作ります。
+        作った検索文はXの検索窓に貼るか、下のボタンでそのまま開けます。
+      </p>
+      <div class="chips">
+        <button type="button" class="chip" id="oshi-chip-tw-natori" onclick="selectOshi('natori')" aria-pressed="true">名取さな</button>
+        <button type="button" class="chip" id="oshi-chip-tw-shigure" onclick="selectOshi('shigure')" aria-pressed="false">しぐれうい</button>
+      </div>
+      <label class="field">
+        <span>アカウント（@は省略可）</span>
+        <input id="tw-acct" type="text" inputmode="url" autocapitalize="off" autocorrect="off" placeholder="sana_natori" />
+      </label>
+      <div class="row">
+        <label class="field"><span>年</span><select id="tw-year"></select></label>
+        <label class="field"><span>月</span><select id="tw-month"></select></label>
+      </div>
+      <label class="field">
+        <span>キーワード（スペースか改行で区切る／いずれかを含む投稿が対象）</span>
+        <textarea id="tw-keywords" style="min-height:160px;">動画
+配信
+コラボ
+ライブ
+らいぶ
+同時視聴
+凸
+投稿
+告知
+ニコニコ</textarea>
+      </label>
+      <button class="primary" style="background:var(--note);" onclick="buildQuery()">検索文を作る</button>
+      <p id="tw-status" class="status"></p>
+    </div>
+
+    <div id="tw-out" class="card hide">
+      <div class="resulthead">
+        <span class="label" id="tw-rangelabel"></span>
+      </div>
+      <div class="query" id="tw-query"></div>
+      <a id="tw-open" class="xopen" href="#" target="_blank" rel="noopener" style="margin-top:12px;">Xでこの検索を開く（最新順） ↗</a>
+      <div class="copybar">
+        <button id="tw-copy" class="note" onclick="copyQuery()">検索文をコピー</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ブルアカらいぶ ============ -->
+  <section id="panel-ba" class="hide">
+    <!-- ブルアカ内サブタブ -->
+    <div class="subtabs" role="tablist" style="margin-top:4px;">
+      <button id="ba-tab-pred"  role="tab" aria-selected="true"  onclick="switchBA('pred')"  style="font-size:13px;">📅 来月予報</button>
+      <button id="ba-tab-anniv" role="tab" aria-selected="false" onclick="switchBA('anniv')" style="font-size:13px;">🎊 周年・ハーフ</button>
+      <button id="ba-tab-reg"   role="tab" aria-selected="false" onclick="switchBA('reg')"   style="font-size:13px;">📡 通常らいぶ</button>
+      <button id="ba-tab-mainte" role="tab" aria-selected="false" onclick="switchBA('mainte')" style="font-size:13px;">🔧 月次メンテ</button>
+    </div>
+
+    <!-- 来月予報 -->
+    <div id="ba-pane-pred">
+      <div class="card">
+        <h2>来月のブルアカらいぶ予報</h2>
+        <div id="ba-next-content" style="font-size:15px;line-height:1.7;"></div>
+      </div>
+    </div>
+
+    <!-- 周年・ハーフ履歴 -->
+    <div id="ba-pane-anniv" class="hide">
+      <div class="card">
+        <h2>周年・ハーフアニバーサリー 放送履歴</h2>
+        <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
+          🔴 らいぶ　🌙 後夜祭　🔧 1回目メンテ　⚡ 2回目大型メンテ<br>
+          ※予測（来月予報）には直近2年分のみ使用。それ以前は参考表示です。
+        </p>
+        <ul class="list" id="ba-history-list"></ul>
+      </div>
+      <div class="card">
+        <h2>パターン分析</h2>
+        <div id="ba-pattern-content" style="font-size:13.5px;line-height:1.8;color:var(--ink);"></div>
+      </div>
+    </div>
+
+    <!-- 通常らいぶ履歴 -->
+    <div id="ba-pane-reg" class="hide">
+      <div class="card">
+        <h2>通常ブルアカらいぶ 放送履歴</h2>
+        <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
+          ※周年・ハーフを除く定期放送。放送日→メンテのパターンを分析。<br>
+          予測には直近1年分を優先使用。それ以前は参考表示です。
+        </p>
+        <ul class="list" id="ba-regular-list"></ul>
+        <div id="ba-regular-pattern" style="font-size:13px;line-height:1.8;margin-top:12px;color:var(--ink);"></div>
+      </div>
+    </div>
+
+    <!-- 月次メンテ予想 -->
+    <div id="ba-pane-mainte" class="hide">
+      <div class="card">
+        <h2>月次・定期メンテナンス 予想</h2>
+        <p style="font-size:12.5px;color:var(--muted);margin:-4px 0 12px;">
+          ※定期メンテは14〜20日周期・火〜水曜11:00が多い。来月の予想日を表示。
+        </p>
+        <div id="ba-mainte-content" style="font-size:14px;line-height:1.8;"></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+
+// このファイルの最終更新日（デプロイのたびに更新すること）。
+// 画面下部に小さく表示することで、実機で開いた内容が最新版かどうかを
+// キャッシュに惑わされず目視確認できるようにする。
+const BUILD_DATE = "2026-10-10";
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('build-info');
+  if(el) el.textContent = `build: ${BUILD_DATE}`;
+});
+
+/* ---------- 安全なローカル保存（ファイル/ホーム画面では有効、サンドボックスでは自動的に無効化） ---------- */
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+};
+
+const DOW = ["日","月","火","水","木","金","土"];
+const PREMIERE_MAX_SEC = 16*60; // この秒数未満の「ライブ」はプレミア公開とみなし動画扱い
+
+// ISO8601期間(PT1H2M3S)を秒に変換
+function parseDuration(iso){
+  if(!iso) return null;
+  const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if(!m) return null;
+  return (+(m[1]||0))*3600 + (+(m[2]||0))*60 + (+(m[3]||0));
+}
+
+// チャンネルのワンタップ選択
+// 推し（人物）ごとのプリセット。ここに追加すればチップも自動で対応する運用ではなく、
+// HTML側のチップとこのオブジェクトのキーを対応させる方式（シンプルさ優先）。
+const OSHI_PRESETS = {
+  natori:  { label:"名取さな", ytHandle:"@sana_natori",  liveOnly:false, twAcct:"sana_natori" },
+  shigure: { label:"しぐれうい", ytHandle:"@ui_shig",      liveOnly:false, twAcct:"ui_shig" },
+};
+
+function usePreset(handle, liveOnly){
+  document.getElementById('yt-channel').value = handle;
+  document.getElementById('yt-premiere').checked = !!liveOnly;
+  store.set('yt_channel', handle);
+}
+
+// 推しチップを押したとき：YouTube欄・X欄の両方を一括で切り替える。
+// どちらのタブから押しても、もう片方のタブに切り替えたときには
+// 既にそのタブの入力欄も埋まっている状態になる。
+function selectOshi(key){
+  const preset = OSHI_PRESETS[key];
+  if(!preset) return;
+  usePreset(preset.ytHandle, preset.liveOnly);
+  document.getElementById('tw-acct').value = preset.twAcct;
+  store.set('tw_acct', preset.twAcct);
+  store.set('oshi_selected', key);
+
+  // 両タブのチップ選択状態を同期（見た目のON/OFF切り替え）
+  Object.keys(OSHI_PRESETS).forEach(k=>{
+    const pressed = (k === key);
+    ['oshi-chip-'+k, 'oshi-chip-tw-'+k].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.setAttribute('aria-pressed', pressed);
+    });
+  });
+}
+
+/* ---------- 年/月セレクトの初期化 ---------- */
+(function initSelectors(){
+  const now = new Date();
+  const thisYear = now.getFullYear();
+  const fill = (ySel, mSel)=>{
+    for(let y=thisYear; y>=thisYear-8; y--){
+      const o=document.createElement('option'); o.value=y; o.textContent=y+"年"; ySel.appendChild(o);
+    }
+    for(let m=1;m<=12;m++){
+      const o=document.createElement('option'); o.value=m; o.textContent=m+"月"; mSel.appendChild(o);
+    }
+    ySel.value = thisYear;
+    mSel.value = now.getMonth()+1;
+  };
+  fill(document.getElementById('yt-year'), document.getElementById('yt-month'));
+  fill(document.getElementById('tw-year'), document.getElementById('tw-month'));
+
+  // 保存済みの値を復元
+  const savedKey = store.get('yt_key');
+  if(savedKey) document.getElementById('yt-key').value = savedKey;
+  const savedCh = store.get('yt_channel');
+  if(savedCh) document.getElementById('yt-channel').value = savedCh;
+  const savedAcct = store.get('tw_acct');
+  if(savedAcct) document.getElementById('tw-acct').value = savedAcct;
+  const savedKw = store.get('tw_keywords');
+  if(savedKw) document.getElementById('tw-keywords').value = savedKw;
+
+  // 前回選択した推しのチップ見た目を復元（入力欄の値自体は上のsavedCh/savedAcctで復元済み）
+  const savedOshi = store.get('oshi_selected');
+  if(savedOshi && OSHI_PRESETS[savedOshi]){
+    Object.keys(OSHI_PRESETS).forEach(k=>{
+      const pressed = (k === savedOshi);
+      ['oshi-chip-'+k, 'oshi-chip-tw-'+k].forEach(id=>{
+        const el = document.getElementById(id);
+        if(el) el.setAttribute('aria-pressed', pressed);
+      });
+    });
+  }
+})();
+
+function isoLocalDate(d){
+  const p = jstParts(d);
+  return `${p.y}-${String(p.mo).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`;
+}
+
+/* ---------- 日本時間(JST)に変換して各パーツを取り出す ---------- */
+function jstParts(date){
+  const fmt = new Intl.DateTimeFormat('ja-JP',{
+    timeZone:'Asia/Tokyo', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', weekday:'short', hour12:false
+  });
+  const parts = {};
+  for(const p of fmt.formatToParts(date)) parts[p.type]=p.value;
+  // weekday → 0..6
+  const wkMap = {"日":0,"月":1,"火":2,"水":3,"木":4,"金":5,"土":6};
+  return {
+    y:+parts.year, mo:+parts.month, d:+parts.day,
+    hh:parts.hour==="24"?"00":parts.hour, mm:parts.minute,
+    dow: wkMap[parts.weekday] ?? 0
+  };
+}
+function fmtDate(p){ return `${p.y}-${String(p.mo).padStart(2,'0')}-${String(p.d).padStart(2,'0')}`; }
+function fmtTime(p){ return `${p.hh}:${p.mm}`; }
+
+/* ===================== タブ切り替え ===================== */
+function switchTop(which){
+  document.getElementById('tab-yt').setAttribute('aria-selected', which==='yt');
+  document.getElementById('tab-tw').setAttribute('aria-selected', which==='tw');
+  document.getElementById('tab-ba').setAttribute('aria-selected', which==='ba');
+  document.getElementById('panel-yt').classList.toggle('hide', which!=='yt');
+  document.getElementById('panel-tw').classList.toggle('hide', which!=='tw');
+  document.getElementById('panel-ba').classList.toggle('hide', which!=='ba');
+  if(which==='ba') switchBA('pred');
+}
+
+let currentKind = 'live';
+function switchKind(kind){
+  currentKind = kind;
+  document.querySelectorAll('.subtabs button').forEach(b=>{
+    b.setAttribute('aria-selected', b.dataset.kind===kind);
+  });
+  renderYouTube();
+  const copy = document.getElementById('yt-copy');
+  copy.className = kind;
+}
+
+function toggleKey(){
+  const inp = document.getElementById('yt-key');
+  const btn = inp.parentElement.querySelector('.toggle');
+  if(inp.type==='password'){ inp.type='text'; btn.textContent='隠す'; }
+  else { inp.type='password'; btn.textContent='表示'; }
+}
+
+/* ===================== YouTube 取得 ===================== */
+let ytData = { live:[], video:[] };
+
+async function yapi(path, params, key){
+  const url = new URL('https://www.googleapis.com/youtube/v3/'+path);
+  for(const [k,v] of Object.entries(params)) url.searchParams.set(k,v);
+  url.searchParams.set('key', key);
+  const res = await fetch(url);
+  const json = await res.json();
+  if(!res.ok){
+    const reason = json?.error?.errors?.[0]?.reason || '';
+    const msg = json?.error?.message || res.statusText;
+    const e = new Error(msg); e.reason = reason; throw e;
+  }
+  return json;
+}
+
+async function resolveChannel(input, key){
+  let v = input.trim();
+  // URLから抽出
+  const chIdMatch = v.match(/channel\/(UC[\w-]{20,})/);
+  if(chIdMatch) return chIdMatch[1];
+  const handleUrl = v.match(/youtube\.com\/@([\w.\-]+)/);
+  if(handleUrl) v = '@'+handleUrl[1];
+  const userUrl = v.match(/youtube\.com\/user\/([\w.\-]+)/);
+
+  if(/^UC[\w-]{20,}$/.test(v)) return v;            // 直接チャンネルID
+  if(v.startsWith('@')){
+    const j = await yapi('channels',{part:'id',forHandle:v},key);
+    if(j.items && j.items[0]) return j.items[0].id;
+  }
+  if(userUrl){
+    const j = await yapi('channels',{part:'id',forUsername:userUrl[1]},key);
+    if(j.items && j.items[0]) return j.items[0].id;
+  }
+  // 最後の手段：ハンドルとして試す
+  const j = await yapi('channels',{part:'id',forHandle:(v.startsWith('@')?v:'@'+v)},key);
+  if(j.items && j.items[0]) return j.items[0].id;
+  throw new Error('チャンネルが見つかりませんでした。@ハンドルかチャンネルIDで試してください。');
+}
+
+function setStatus(id, text, cls){
+  const el = document.getElementById(id);
+  el.className = 'status' + (cls?(' '+cls):'');
+  el.innerHTML = text;
+}
+
+async function runYouTube(){
+  const key = document.getElementById('yt-key').value.trim();
+  const chInput = document.getElementById('yt-channel').value.trim();
+  const year = +document.getElementById('yt-year').value;
+  const month = +document.getElementById('yt-month').value;
+  const excludePremiere = document.getElementById('yt-premiere').checked;
+  const goBtn = document.getElementById('yt-go');
+
+  if(!key){ setStatus('yt-status','APIキーを入力してください。','err'); return; }
+  if(!chInput){ setStatus('yt-status','チャンネルを入力してください。','err'); return; }
+
+  store.set('yt_key', key);
+  store.set('yt_channel', chInput);
+
+  goBtn.disabled = true;
+  setStatus('yt-status','<span class="spin"></span>チャンネルを確認中…');
+
+  // 対象月のJST範囲（UTCに換算してフィルタ）
+  // JST = UTC+9 → 月初0:00 JST = 前日15:00 UTC
+  const startUTC = Date.UTC(year, month-1, 1, 0,0,0) - 9*3600*1000;
+  const endUTC   = Date.UTC(year, month,   1, 0,0,0) - 9*3600*1000;
+
+  try{
+    const channelId = await resolveChannel(chInput, key);
+    const uploads = 'UU' + channelId.slice(2); // uploadsプレイリストID
+    setStatus('yt-status','<span class="spin"></span>動画一覧を収集中…');
+
+    const idsInRange = [];
+    let pageToken = '';
+    let pages = 0;
+    let stop = false;
+    while(!stop && pages < 40){
+      const params = { part:'contentDetails', playlistId:uploads, maxResults:50 };
+      if(pageToken) params.pageToken = pageToken;
+      let j;
+      try{ j = await yapi('playlistItems', params, key); }
+      catch(e){
+        if(e.reason==='playlistNotFound'){ throw new Error('このチャンネルの公開アップロードが見つかりませんでした。'); }
+        throw e;
+      }
+      for(const it of (j.items||[])){
+        const t = new Date(it.contentDetails.videoPublishedAt).getTime();
+        if(t >= endUTC) continue;            // 対象月より新しい → スキップ
+        if(t < startUTC){ stop = true; break;} // 対象月より古い → 以降は全部古い
+        idsInRange.push(it.contentDetails.videoId);
+      }
+      pageToken = j.nextPageToken || '';
+      if(!pageToken) break;
+      pages++;
+    }
+
+    ytData = { live:[], video:[] };
+
+    if(idsInRange.length){
+      setStatus('yt-status','<span class="spin"></span>配信/動画の詳細を取得中…（'+idsInRange.length+'件）');
+      for(let i=0;i<idsInRange.length;i+=50){
+        const chunk = idsInRange.slice(i,i+50);
+        const j = await yapi('videos',{part:'snippet,liveStreamingDetails,contentDetails',id:chunk.join(',')},key);
+        for(const v of (j.items||[])){
+          const lsd = v.liveStreamingDetails;
+          const hasLive = !!lsd && (lsd.actualStartTime || lsd.scheduledStartTime);
+          let kind = hasLive ? 'live' : 'video';
+          // プレミア公開の除外：実際の放送時間が短いものは「動画」扱いにする
+          if(kind==='live' && excludePremiere && lsd.actualStartTime){
+            let sec = null;
+            if(lsd.actualEndTime){
+              sec = (new Date(lsd.actualEndTime) - new Date(lsd.actualStartTime))/1000;
+            }else if(v.contentDetails){
+              sec = parseDuration(v.contentDetails.duration);
+            }
+            if(sec!==null && sec < PREMIERE_MAX_SEC) kind = 'video';
+          }
+          const isLiveEntry = (kind==='live');
+          // 配信は実際の開始時刻（なければ予定）、動画は公開時刻
+          const refIso = isLiveEntry
+            ? (lsd.actualStartTime || lsd.scheduledStartTime)
+            : v.snippet.publishedAt;
+          // refが対象月か再確認（配信開始が公開と別月のことがあるため）
+          const refMs = new Date(refIso).getTime();
+          if(refMs < startUTC || refMs >= endUTC) continue;
+          const p = jstParts(new Date(refIso));
+          ytData[kind].push({
+            title: v.snippet.title,
+            videoId: v.id,
+            parts: p,
+            sortKey: refMs,
+            isUpcoming: isLiveEntry && !lsd.actualStartTime
+          });
+        }
+      }
+    }
+
+    ytData.live.sort((a,b)=>a.sortKey-b.sortKey);
+    ytData.video.sort((a,b)=>a.sortKey-b.sortKey);
+
+    document.getElementById('cnt-live').textContent  = ytData.live.length;
+    document.getElementById('cnt-video').textContent = ytData.video.length;
+    document.getElementById('yt-rangelabel').textContent = `${year}年${month}月（日本時間）`;
+    document.getElementById('yt-results').classList.remove('hide');
+    switchKind('live');
+    setStatus('yt-status', `取得完了：配信 ${ytData.live.length}件 / 動画 ${ytData.video.length}件`, 'ok');
+
+  }catch(e){
+    let msg = e.message || '取得に失敗しました。';
+    if(e.reason==='quotaExceeded') msg = '本日のAPIクォータ上限に達しました。明日また試してください。';
+    if(e.reason==='keyInvalid' || e.reason==='badRequest') msg = 'APIキーが無効か、設定（API有効化・制限）を確認してください。';
+    if(e.reason==='forbidden') msg = 'APIキーの制限を確認してください（ローカル利用は制限「なし」推奨）。';
+    setStatus('yt-status', msg, 'err');
+  }finally{
+    goBtn.disabled = false;
+  }
+}
+
+function renderYouTube(){
+  const list = document.getElementById('yt-list');
+  const arr = ytData[currentKind];
+  list.innerHTML = '';
+  if(!arr.length){
+    list.innerHTML = `<li class="empty">この月に${currentKind==='live'?'配信':'動画'}は見つかりませんでした。</li>`;
+    return;
+  }
+  for(const e of arr){
+    const li = document.createElement('li');
+    const dowCls = e.parts.dow===0?'sun':(e.parts.dow===6?'sat':'');
+    const timeCls = currentKind==='live'?'live':'video';
+    li.innerHTML =
+      `<div class="item-top">
+         <span class="date">${fmtDate(e.parts)}</span>
+         <span class="dow ${dowCls}">(${DOW[e.parts.dow]})</span>
+         <span class="time ${timeCls}">${fmtTime(e.parts)}${e.isUpcoming?'〜予定':''}</span>
+       </div>
+       <div class="title">${escapeHtml(e.title)}</div>
+       <div class="meta"><a href="https://www.youtube.com/watch?v=${e.videoId}" target="_blank" rel="noopener">動画を開く</a></div>`;
+    list.appendChild(li);
+  }
+}
+
+function copyYouTube(){
+  const arr = ytData[currentKind];
+  const lines = arr.map(e=>{
+    const base = `${e.parts.d}日(${DOW[e.parts.dow]}) ${fmtTime(e.parts)}${e.isUpcoming?'〜予定':''}`;
+    return `${base}  ${e.title}`;
+  });
+  const text = lines.length?lines.join('\n'):'（なし）';
+  copyText(text, 'yt-copy', currentKind);
+}
+
+/* ===================== Twitter / X 検索クエリ生成 ===================== */
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+function buildQuery(){
+  const acct = document.getElementById('tw-acct').value.trim().replace(/^@+/,'');
+  const year = +document.getElementById('tw-year').value;
+  const month = +document.getElementById('tw-month').value;
+  const kwRaw = document.getElementById('tw-keywords').value;
+
+  if(!acct){ setStatus('tw-status','アカウント名を入力してください。','err'); return; }
+
+  // キーワードを区切って OR でまとめる（スペース・改行・カンマ・読点・全角スペース）
+  const kws = kwRaw.split(/[\s,、　]+/).filter(Boolean);
+
+  // 期間：その月の1日 〜 翌月1日（until は当日を含まない＝月末まで）
+  const since = `${year}-${pad2(month)}-01`;
+  const ny = month===12 ? year+1 : year;
+  const nm = month===12 ? 1 : month+1;
+  const until = `${ny}-${pad2(nm)}-01`;
+
+  let q = `from:${acct}`;
+  if(kws.length){
+    const terms = kws.map(k => k.includes(' ') ? `"${k}"` : k).join(' OR ');
+    q += ` (${terms})`;
+  }
+  q += ` since:${since} until:${until}`;
+
+  document.getElementById('tw-query').textContent = q;
+  document.getElementById('tw-open').href =
+    'https://x.com/search?q=' + encodeURIComponent(q) + '&src=typed_query&f=live';
+  document.getElementById('tw-rangelabel').textContent =
+    `${year}年${month}月（${since} 〜 ${until}）／ キーワード ${kws.length}件`;
+  document.getElementById('tw-out').classList.remove('hide');
+  setStatus('tw-status','検索文を作成しました。','ok');
+
+  // 入力を保存
+  store.set('tw_acct', acct);
+  store.set('tw_keywords', kwRaw);
+}
+
+function copyQuery(){
+  copyText(document.getElementById('tw-query').textContent, 'tw-copy', 'note');
+}
+
+/* ===================== 共通：コピー & エスケープ ===================== */
+async function copyText(text, btnId, cls){
+  const btn = document.getElementById(btnId);
+  const orig = btn.textContent;
+  try{
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'コピーしました ✓';
+  }catch(e){
+    // フォールバック
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); btn.textContent='コピーしました ✓'; }
+    catch(_){ btn.textContent='コピーできませんでした'; }
+    document.body.removeChild(ta);
+  }
+  setTimeout(()=>{ btn.textContent = orig; }, 1600);
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s){ return escapeHtml(s); }
+/* ===================== ブルアカらいぶ ===================== */
+const DOW_JP = ["日","月","火","水","木","金","土"];
+
+function dowStr(dateStr){
+  const d = new Date(dateStr+"T00:00:00");
+  return DOW_JP[(d.getDay())];
+}
+function dowCls(dateStr){
+  const d = new Date(dateStr+"T00:00:00").getDay();
+  return d===0?'sun':d===6?'sat':'';
+}
+function weekOfMonth(dateStr){
+  const d = new Date(dateStr+"T00:00:00");
+  return Math.ceil(d.getDate()/7);
+}
+function fmtDateJP(dateStr){
+  const d = new Date(dateStr+"T00:00:00");
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+// 指定年月の「第wn週のdow曜日」の日付(1-31)を返す。月内に存在しなければnull
+function getNthWeekday(y, m1, wn, dow){
+  const first = new Date(y, m1-1, 1).getDay();
+  const d = 1 + (dow - first + 7) % 7 + (wn - 1) * 7;
+  const lastDay = new Date(y, m1, 0).getDate();
+  return d <= lastDay ? d : null;
+}
+// dayを月内の日数に収める（月末を超えないようclamp）
+function clampDayInMonth(y, m1, day){
+  const lastDay = new Date(y, m1, 0).getDate();
+  return Math.min(Math.max(day, 1), lastDay);
+}
+// base日から見て「月内でprefDowに最も近い日」を候補[-1,0,+1]から選ぶ
+function nearestDowInRange(y, m1, baseDay, prefDow){
+  const lastDay = new Date(y, m1, 0).getDate();
+  const cands = [baseDay-1, baseDay, baseDay+1].filter(x=>x>=1 && x<=lastDay);
+  return cands.sort((a,b)=>
+    Math.abs(new Date(y,m1-1,a).getDay()-prefDow) - Math.abs(new Date(y,m1-1,b).getDay()-prefDow)
+  )[0];
+}
+
+// ─── 直近優先の重み付け集計（周年・通常らいぶ・月次メンテ予測で共通利用） ─────
+// 配列の末尾（＝最新）ほど重みを大きくする。統一ルール：直近1件=3倍、2件目=2倍、それ以外=1倍。
+// 過去、この重み付けが実装ごとにバラバラだったことが「最頻値が実態と合わない」
+// バグの温床になっていたため、判定ロジックを1箇所に集約している。
+function recencyWeight(index, length){
+  const fromEnd = length - 1 - index;
+  return fromEnd === 0 ? 3 : fromEnd === 1 ? 2 : 1;
+}
+// arr の各要素から keyFn(item) でキーを取り、直近優先の重み付き集計をして
+// 最頻キーを求める。キーは数値・文字列どちらでも可（呼び出し側で必要なら数値化する）。
+// 集計内訳も第2戻り値で返す。
+function weightedTopKey(arr, keyFn){
+  const counts = {};
+  arr.forEach((item, i) => {
+    const key = keyFn(item);
+    const w = recencyWeight(i, arr.length);
+    counts[key] = (counts[key] || 0) + w;
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1] - a[1]);
+  return { top: sorted[0][0], counts };
+}
+// arr の各要素から valueFn(item) で数値を取り、直近優先の重み付き平均を返す。
+function weightedAverage(arr, valueFn){
+  if(!arr.length) return null;
+  let wsum = 0, wtotal = 0;
+  arr.forEach((item, i) => {
+    const w = recencyWeight(i, arr.length);
+    wsum += valueFn(item) * w;
+    wtotal += w;
+  });
+  return Math.round(wsum / wtotal);
+}
+
+// ─── データ ───────────────────────────────────────────────
+// type: live / kouyasai / mainte / mainte2（2回目大型）
+const BA_LIVE_HISTORY = [
+  { label:"1周年",          date:"2022-01-21", time:"19:00", note:"ふぁーすとあにばSP！",                               type:"live" },
+  { label:"1周年後夜祭",     date:"2022-01-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"1周年メンテ",     date:"2022-01-26", time:"11:00", note:"らいぶから5日後（水）※一次ソース未確認・当時の攻略サイト記載ベース", type:"mainte" },
+  { label:"1.5周年",        date:"2022-07-16", time:"19:00", note:"夏のブルアカらいぶ！1.5周年記念すぺしゃる！",        type:"live" },
+  { label:"1.5周年後夜祭",   date:"2022-07-17", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"1.5周年メンテ",   date:"2022-07-20", time:"11:00", note:"らいぶから4日後（水）※一次ソース未確認",             type:"mainte" },
+  { label:"2周年",          date:"2023-01-22", time:"19:00", note:"せかんどあにばSP！（ブルアカふぇす会場）",           type:"live" },
+  { label:"2周年後夜祭",     date:"2023-01-23", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"2周年メンテ",     date:"2023-01-24", time:"11:00", note:"らいぶから2日後（火）※第2章実装日として複数ソースで確認済み", type:"mainte" },
+  { label:"2.5周年",        date:"2023-07-23", time:"17:00", note:"夏のブルアカらいぶ！あっちっちSP",                   type:"live" },
+  { label:"2.5周年後夜祭",   date:"2023-07-24", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"2.5周年メンテ",   date:"2023-07-26", time:"11:00", note:"らいぶから3日後（水）※一次ソース未確認",             type:"mainte" },
+  { label:"3周年 Day1",     date:"2024-01-20", time:"10:00", note:"さーどあにばSP！（ふぇす Day1）",                    type:"live" },
+  { label:"3周年 Day2",     date:"2024-01-21", time:"16:00", note:"さーどあにばSP！（ふぇす Day2・生放送本編）",         type:"live" },
+  { label:"3周年後夜祭",     date:"2024-01-22", time:null,    note:"らいぶ最終日翌日",                                  type:"kouyasai" },
+  { label:"3周年メンテ",     date:"2024-01-24", time:"11:00", note:"らいぶから3日後（水）※実データ確認済み",             type:"mainte" },
+  { label:"3.5周年",        date:"2024-07-21", time:"10:00", note:"夏のブルアカらいぶ！はっぴ～さま～しょ～たいむ！SP", type:"live" },
+  { label:"3.5周年後夜祭",   date:"2024-07-22", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"3.5周年メンテ",   date:"2024-07-22", time:"11:00", note:"らいぶから1日後（月）※実データ確認済み",             type:"mainte" },
+  { label:"4周年 Day1",     date:"2025-01-17", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day1）",                  type:"live" },
+  { label:"4周年 Day2",     date:"2025-01-18", time:"10:00", note:"ふぁ～すあにばSP！（ふぇす Day2）",                  type:"live" },
+  { label:"4周年後夜祭",     date:"2025-01-19", time:null,    note:"らいぶ最終日翌日（ふぇす Day3）",                   type:"kouyasai" },
+  { label:"4周年メンテ",     date:"2025-01-20", time:"11:00", note:"らいぶから2日後（月）",                             type:"mainte" },
+  { label:"4周年大型メンテ",  date:"2025-02-03", time:"11:00", note:"メンテから14日後（月）・エリア28追加",              type:"mainte2" },
+  { label:"4.5周年",        date:"2025-07-19", time:"18:30", note:"夏のブルアカらいぶ！さんしゃいんさまーぱーてぃー！SP",type:"live" },
+  { label:"4.5周年後夜祭",   date:"2025-07-20", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"4.5周年メンテ",   date:"2025-07-22", time:"11:00", note:"らいぶから3日後（火）",                             type:"mainte" },
+  { label:"4.5周年大型メンテ",date:"2025-08-06", time:"11:00", note:"メンテから15日後（水）・エリア29追加",              type:"mainte2" },
+  { label:"5周年 Day1",     date:"2026-01-17", time:"10:00", note:"ふぃふすあにばSP！ Day1（ふぇす）",                  type:"live" },
+  { label:"5周年 Day2",     date:"2026-01-18", time:"10:00", note:"ふぃふすあにばSP！ Day2（ふぇす）",                  type:"live" },
+  { label:"5周年後夜祭",     date:"2026-01-19", time:null,    note:"らいぶ最終日翌日",                                  type:"kouyasai" },
+  { label:"5周年メンテ",     date:"2026-01-20", time:"11:00", note:"らいぶから2日後（火）",                             type:"mainte" },
+  { label:"5周年大型メンテ",  date:"2026-02-03", time:"11:00", note:"推定（1回目メンテ+14日）※1/29にフェスガチャ切替あり",  type:"mainte2" },
+  { label:"5.5周年",        date:"2026-07-26", time:"19:00", note:"夏のブルアカらいぶ！ほっと！ほったー！！ほってすと！！！SP（前座含め15:00〜7時間超）", type:"live" },
+  { label:"5.5周年後夜祭",   date:"2026-07-27", time:null,    note:"らいぶ翌日",                                        type:"kouyasai" },
+  { label:"5.5周年メンテ",   date:"2026-07-29", time:"11:00", note:"らいぶから3日後（水）・実データ確認済み",             type:"mainte" },
+  { label:"5.5周年大型メンテ",date:"2026-08-05", time:"11:00", note:"メンテから7日後（水）・実データ確認済み・記念限定募集開始", type:"mainte2" },
+];
+
+// 通常ブルアカらいぶ（周年・ハーフを除く定期放送）
+const BA_REGULAR_HISTORY = [
+  { label:"2024/03/24 春SP",              liveDate:"2024-03-24", mainteDate:"2024-03-25", offset:1,  liveTime:"19:00" },
+  { label:"2024/04/20 京都旅行SP",         liveDate:"2024-04-20", mainteDate:"2024-04-22", offset:2,  liveTime:"17:00" },
+  { label:"2024/06/22 夏直前SP",           liveDate:"2024-06-22", mainteDate:"2024-06-24", offset:2,  liveTime:"19:00" },
+  { label:"2024/10/19 秋SP",               liveDate:"2024-10-19", mainteDate:"2024-10-21", offset:2,  liveTime:"19:00" },
+  { label:"2024/12/22 クリスマス前SP",     liveDate:"2024-12-22", mainteDate:"2024-12-24", offset:2,  liveTime:"19:00" },
+  { label:"2025/04/20 すぷりんぐはずかむSP", liveDate:"2025-04-20", mainteDate:"2025-04-22", offset:2,  liveTime:"19:00" },
+  { label:"2025/05/18 みに♪",              liveDate:"2025-05-18", mainteDate:"2025-05-20", offset:2,  liveTime:"19:00" },
+  { label:"2025/08/17 みに♪りとらい",      liveDate:"2025-08-17", mainteDate:"2025-08-19", offset:2,  liveTime:"19:00" },
+  { label:"2025/09/20 みに♪京都出張",      liveDate:"2025-09-20", mainteDate:"2025-09-22", offset:2,  liveTime:"19:00" },
+  { label:"2025/10/18 秋からーずSP",       liveDate:"2025-10-18", mainteDate:"2025-10-20", offset:2,  liveTime:"19:00" },
+  { label:"2025/12/20 くりぱSP",           liveDate:"2025-12-20", mainteDate:"2025-12-24", offset:4,  liveTime:"19:00" },
+  { label:"2026/04/19 すぷりんぐふぃーばーSP", liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
+  { label:"2026/06/20 ざ☆すたーとおぶさまーSP", liveDate:"2026-06-20", mainteDate:"2026-06-24", offset:4,  liveTime:"19:00" },
+];
+
+// 定期メンテ実績（日付のみ・BA_REGULAR_HISTORYに紐付かない単発の確認済みメンテ日）
+// 【確定パターン】利用者証言・公式アナウンス複数件により、
+// 基本は「隔週水曜11:00〜17:00（イベント切り替え時は19:00まで延長）」が確定。
+// 例外的に火曜・金曜（主に臨時メンテ・周年直後）になることがある。
+const BA_REGULAR_MAINTE_EXTRA = [
+  "2025-12-03","2025-12-17", // 水・水（14日間隔）
+  "2026-02-03", // 火（周年2回目大型メンテと同日）
+  "2026-03-18", // 水
+  "2026-04-01", // 水（14日間隔）
+  "2026-05-27", // 水
+  "2026-07-08", // 水
+  "2026-09-23", // 水 11:00〜19:00（公式告知）
+  "2026-10-07", // 水 11:00〜17:00（イベント開始メンテ）
+];
+// 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分 + 周年系メンテ実績、重複排除・ソート済み）
+// ※ BA_LIVE_HISTORY内のmainte/mainte2（周年・ハーフ周年時のメンテ）も
+//   実際にメンテが行われた日という点では同じなので、周期・曜日の予測材料に含める
+function getAllRegularMainteDates(){
+  const fromHistory = BA_REGULAR_HISTORY.map(x=>x.mainteDate);
+  const fromAnniv = BA_LIVE_HISTORY.filter(x=>x.type==='mainte'||x.type==='mainte2').map(x=>x.date);
+  const merged = Array.from(new Set([...fromHistory, ...BA_REGULAR_MAINTE_EXTRA, ...fromAnniv]));
+  return merged.sort();
+}
+
+// ─── サブタブ切り替え ───────────────────────────────────────
+let baRendered = false;
+function switchBA(which){
+  ['pred','anniv','reg','mainte'].forEach(k => {
+    document.getElementById('ba-tab-'+k).setAttribute('aria-selected', k===which);
+    document.getElementById('ba-pane-'+k).classList.toggle('hide', k!==which);
+  });
+  if(!baRendered){
+    baRendered = true;
+    renderBAHistoryAnniv();
+    renderBAHistoryRegular();
+    renderBANextMonth();
+    renderBAMainte();
+  }
+}
+
+// ─── 周年・ハーフ 履歴 ─────────────────────────────────────
+function renderBAHistoryAnniv(){
+  const ul = document.getElementById('ba-history-list');
+  if(ul.children.length > 0) return;
+
+  // 表示は新しい順（降順）。BA_LIVE_HISTORY自体は古い順に定義されているため、
+  // 表示直前にコピーして日付降順に並べ替える（元データの並びには影響しない）
+  const sortedHistory = [...BA_LIVE_HISTORY].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  sortedHistory.forEach(item => {
+    const li = document.createElement('li');
+    const dc = dowCls(item.date);
+    const dj = dowStr(item.date);
+    const d  = new Date(item.date+"T00:00:00");
+    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    const isLive  = item.type==='live';
+    const isKouy  = item.type==='kouyasai';
+    const isM1    = item.type==='mainte';
+    const isM2    = item.type==='mainte2';
+
+    const bg = isKouy?'background:#f0f4ff;border-radius:8px;padding:6px 8px;margin:-2px -4px;'
+              :isM1  ?'background:#f0fff4;border-radius:8px;padding:6px 8px;margin:-2px -4px;'
+              :isM2  ?'background:#fff8e1;border-radius:8px;padding:6px 8px;margin:-2px -4px;'
+              :'';
+
+    const icon = isLive?'🔴':isKouy?'🌙':isM1?'🔧':'⚡';
+    const timeHtml = isLive
+      ? `<span class="time live" style="margin-left:auto;">${item.time}〜</span>`
+      : isKouy
+        ? `<span style="margin-left:auto;font-size:12px;color:var(--note);font-weight:700;">🌙 後夜祭</span>`
+        : isM1
+          ? `<span style="margin-left:auto;font-size:12px;color:#1a7f4b;font-weight:700;">🔧 メンテ ${item.time}〜</span>`
+          : `<span style="margin-left:auto;font-size:12px;color:#c77b1e;font-weight:700;">⚡ 大型メンテ ${item.time}〜</span>`;
+
+    const weekHtml = isLive
+      ? `<span style="font-size:12px;color:var(--muted);margin-left:4px;">第${weekOfMonth(item.date)}${dj}曜</span>`:'';
+
+    li.innerHTML = `<div style="${bg}">
+      <div class="item-top">
+        <span style="font-size:12px;margin-right:2px;">${icon}</span>
+        <span class="date" style="font-size:13.5px;">${ds}</span>
+        <span class="dow ${dc}">(${dj})</span>${weekHtml}${timeHtml}
+      </div>
+      <div style="font-size:13px;margin-top:2px;">${item.label}
+        <span style="font-size:11.5px;color:var(--muted);"> — ${item.note}</span>
+      </div>
+    </div>`;
+    ul.appendChild(li);
+  });
+
+  // パターン分析
+  const janLive = BA_LIVE_HISTORY.filter(x=>x.type==='live'&&new Date(x.date+"T00:00:00").getMonth()===0);
+  const julLive = BA_LIVE_HISTORY.filter(x=>x.type==='live'&&new Date(x.date+"T00:00:00").getMonth()===6);
+  const m2 = BA_LIVE_HISTORY.filter(x=>x.type==='mainte2');
+
+  function topOf(arr, fn){
+    const c={}; arr.forEach(x=>{const k=fn(x);c[k]=(c[k]||0)+1;});
+    return Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
+  }
+  function summarize(arr, lbl){
+    if(!arr.length) return '';
+    const topW = topOf(arr, x=>weekOfMonth(x.date));
+    const topD = topOf(arr, x=>new Date(x.date+"T00:00:00").getDay());
+    const topT = topOf(arr, x=>x.time||'?');
+    return `<b>${lbl}</b>：第${topW[0]}週・${DOW_JP[+topD[0]]}曜（${topW[1]}/${arr.length}回）、開始<b>${topT[0]}</b>が最多`;
+  }
+
+  // mainte2のオフセット
+  const m2Offsets = [];
+  m2.forEach(m => {
+    const md = new Date(m.date+"T00:00:00");
+    // 対応するmainte1を探す
+    const prefix = m.label.replace('大型メンテ','メンテ');
+    const m1 = BA_LIVE_HISTORY.find(x=>x.type==='mainte'&&x.label===prefix);
+    if(m1){
+      const m1d = new Date(m1.date+"T00:00:00");
+      m2Offsets.push(Math.round((md-m1d)/(86400000)));
+    }
+  });
+  const avgM2 = m2Offsets.length ? Math.round(m2Offsets.reduce((a,b)=>a+b)/m2Offsets.length) : 14;
+  const m2Range = m2Offsets.length ? `${Math.min(...m2Offsets)}〜${Math.max(...m2Offsets)}日` : '';
+
+  document.getElementById('ba-pattern-content').innerHTML =
+    summarize(janLive,'周年（1月・全期間参考）') + '<br>' +
+    summarize(julLive,'.5周年（7月・全期間参考）') + '<br>' +
+    `<b>大型メンテ</b>：1回目メンテから平均 <b>+${avgM2}日後</b>（${m2.length}回実績・幅${m2Range}）` + '<br>' +
+    `<span style="font-size:12px;color:var(--muted);">※第N週=その月の1日から数えて何番目の週か。実際の予測（来月予報）は直近2年分のデータを優先して算出します。</span>`;
+}
+
+// ─── 通常らいぶ 履歴 ────────────────────────────────────────
+function renderBAHistoryRegular(){
+  const ul = document.getElementById('ba-regular-list');
+  if(ul.children.length > 0) return;
+
+  // 表示は新しい順（降順）。元データの並びには影響しない
+  const sortedRegular = [...BA_REGULAR_HISTORY].sort((a,b) => new Date(b.liveDate) - new Date(a.liveDate));
+
+  sortedRegular.forEach(item => {
+    const ld = new Date(item.liveDate+"T00:00:00");
+    const md = new Date(item.mainteDate+"T00:00:00");
+    const ldc = dowCls(item.liveDate), ldj = dowStr(item.liveDate);
+    const mdj = dowStr(item.mainteDate);
+    const lds = `${ld.getFullYear()}-${String(ld.getMonth()+1).padStart(2,'0')}-${String(ld.getDate()).padStart(2,'0')}`;
+    const mds = `${md.getFullYear()}-${String(md.getMonth()+1).padStart(2,'0')}-${String(md.getDate()).padStart(2,'0')}`;
+
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="item-top">
+        <span style="font-size:12px;margin-right:2px;">📡</span>
+        <span class="date" style="font-size:13.5px;">${lds}</span>
+        <span class="dow ${ldc}">(${ldj})</span>
+        <span class="time live" style="margin-left:auto;">${item.liveTime}〜</span>
+      </div>
+      <div style="font-size:13px;margin-top:2px;">${item.label}</div>
+      <div style="background:#f0fff4;border-radius:6px;padding:4px 8px;margin-top:4px;font-size:12px;color:#1a7f4b;">
+        🔧 メンテ：${mds}（${mdj}）11:00〜
+        <span style="color:var(--muted);margin-left:4px;">+${item.offset}日</span>
+      </div>`;
+    ul.appendChild(li);
+  });
+
+  // パターン集計
+  const offsets = BA_REGULAR_HISTORY.map(x=>x.offset);
+  const dowCounts = {};
+  BA_REGULAR_HISTORY.forEach(x=>{
+    const dow = new Date(x.mainteDate+"T00:00:00").getDay();
+    dowCounts[dow]=(dowCounts[dow]||0)+1;
+  });
+  const topDow = Object.entries(dowCounts).sort((a,b)=>b[1]-a[1])[0];
+  const avgOff = Math.round(offsets.reduce((a,b)=>a+b)/offsets.length);
+
+  document.getElementById('ba-regular-pattern').innerHTML =
+    `<b>通常らいぶ→メンテ（全${BA_REGULAR_HISTORY.length}件・参考値）</b>：放送から平均 <b>+${avgOff}日後</b>、最多曜日 <b>${DOW_JP[+topDow[0]]}曜</b>（${topDow[1]}/${BA_REGULAR_HISTORY.length}回）11:00〜<br>
+    <span style="font-size:12px;color:var(--muted);">※実際の予測（来月予報）は直近1年分のデータを優先して算出します。</span>`;
+}
+
+// ─── 来月予報 ────────────────────────────────────────────────
+function renderBANextMonth(){
+  const el = document.getElementById('ba-next-content');
+  const now = new Date();
+  const nextYear  = now.getMonth()===11 ? now.getFullYear()+1 : now.getFullYear();
+  const nextMonth = now.getMonth()===11 ? 1 : now.getMonth()+2; // 1-indexed
+
+  const isAnniv = nextMonth===1 || nextMonth===7;
+  const isSummer = nextMonth===7;
+
+  let html = `<div style="font-weight:700;font-size:15px;margin-bottom:12px;">
+    ${nextYear}年${nextMonth}月の予報
+  </div>`;
+
+  if(isAnniv){
+    // ── 周年系 ──
+    // 予測は直近の傾向を重視するため、集計対象を「直近2年分」に限定する
+    // （1〜2.5周年は当時の運営体制・イベント設計が現在と異なる可能性が高く、
+    //   古すぎるデータを混ぜると直近の傾向が薄まってしまうため）
+    // ただし該当件数が2件未満だと同点が生じやすく不安定になるため、
+    // その場合は直近3件を確保するフォールバックを設ける
+    const RECENT_YEARS_CUTOFF = new Date(now.getFullYear()-2, now.getMonth(), now.getDate());
+    const sameMonthAll = BA_LIVE_HISTORY.filter(x=>{
+      if(x.type!=='live') return false;
+      const d = new Date(x.date+"T00:00:00");
+      return isSummer ? d.getMonth()===6 : d.getMonth()===0;
+    }).sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const recentOnly = sameMonthAll.filter(x=>new Date(x.date+"T00:00:00") >= RECENT_YEARS_CUTOFF);
+    const targetLive = recentOnly.length >= 3 ? recentOnly : sameMonthAll.slice(-3);
+
+    // 週・曜日・時刻の最頻値は直近ほど重みを大きくして算出する
+    const weekStats = weightedTopKey(targetLive, x=>weekOfMonth(x.date));
+    const dowStats  = weightedTopKey(targetLive, x=>new Date(x.date+"T00:00:00").getDay());
+    const topW = +weekStats.top;
+    const topD = +dowStats.top;
+    const topT = weightedTopKey(targetLive, x=>x.time).top;
+
+    // 本命・候補（週±1、曜日は隣接2つも含めて幅広く候補を出す）
+    const candidates=[];
+    const weekOptions = [topW, topW-1, topW+1];
+    const dowOptions = [topD, (topD+1)%7, (topD-1+7)%7];
+    weekOptions.forEach(wn=>{
+      dowOptions.forEach(dn=>{
+        const d=getNthWeekday(nextYear,nextMonth,wn,dn);
+        if(d) candidates.push({day:d,dow:dn,week:wn,score:(weekStats.counts[wn]||0)*2+(dowStats.counts[dn]||0)});
+      });
+    });
+    // 重複除去（同じdayが複数候補から生成されることがあるため）
+    const seenDays = new Set();
+    const uniqCandidates = candidates
+      .sort((a,b)=>b.score-a.score)
+      .filter(c=>{
+        if(seenDays.has(c.day)) return false;
+        seenDays.add(c.day);
+        return true;
+      });
+    candidates.length = 0;
+    candidates.push(...uniqCandidates);
+
+    const annivNum = isSummer ? (nextYear-2021)-1+0.5 : nextYear-2021;
+    html += `<div style="background:#fff3cd;border-radius:10px;padding:10px 12px;margin-bottom:12px;border:1px solid #ffd777;">
+      <div style="font-weight:700;font-size:15px;color:var(--live);">⚡ 周年放送月です</div>
+      <div style="font-size:13px;color:#555;margin-top:2px;">${annivNum}周年のブルアカらいぶが予想されます</div>
+    </div>`;
+
+    // らいぶ候補
+    html += `<div style="font-weight:700;margin-bottom:8px;">📅 らいぶ候補日</div>`;
+    candidates.slice(0,2).forEach((c,i)=>{
+      const main=i===0;
+      const dj=DOW_JP[c.dow];
+      const dc2=c.dow===0?'color:var(--live)':c.dow===6?'color:var(--video)':'';
+      html+=`<div style="background:${main?'var(--ink)':'#f3f4f7'};color:${main?'#fff':'var(--ink)'};border-radius:10px;padding:11px 13px;margin-bottom:8px;border:1px solid ${main?'var(--ink)':'var(--line)'};">
+        <div style="font-size:${main?15:14}px;font-weight:700;">${main?'◉ 本命':'◎ 候補'} ${nextYear}年${nextMonth}月${c.day}日（<span style="${main?'':dc2}">${dj}</span>）第${c.week}週</div>
+        <div style="font-size:13px;opacity:.8;margin-top:2px;">開始 ${topT}〜（予想）</div>
+      </div>`;
+    });
+
+    // 後夜祭・メンテ・大型メンテ
+    if(candidates.length>0){
+      const mainDay = candidates[0].day;
+      const last = new Date(nextYear,nextMonth,0).getDate();
+
+      // メンテ実績集計（直近2年分のみ・古いデータは参考程度に留める）
+      const m1s = BA_LIVE_HISTORY.filter(x=>{
+        if(x.type!=='mainte') return false;
+        const d = new Date(x.date+"T00:00:00");
+        if(d < RECENT_YEARS_CUTOFF) return false;
+        return isSummer ? d.getMonth()===6 : d.getMonth()===0;
+      });
+      const m1Offsets = m1s.map(m=>{
+        const live = BA_LIVE_HISTORY.filter(x=>x.type==='live'&&x.label.startsWith(m.label.replace('メンテ',''))).pop();
+        return live ? (new Date(m.date+"T00:00:00")-new Date(live.date+"T00:00:00"))/86400000 : 2;
+      });
+      const avgM1 = weightedAverage(m1Offsets, x=>x) ?? 2;
+      const topM1Dow = m1s.length ? +weightedTopKey(m1s, m=>new Date(m.date+"T00:00:00").getDay()).top : 1;
+
+      // 大型メンテ実績（直近ほど重みを大きくする。5.5周年で+7日という短縮パターンが
+      // 新たに観測されたため、単純平均ではなく直近優先で反映する）
+      const m2s = BA_LIVE_HISTORY.filter(x=>x.type==='mainte2'&&(isSummer?new Date(x.date+"T00:00:00").getMonth()>=6:new Date(x.date+"T00:00:00").getMonth()<=1));
+      const m2Offsets2 = m2s.map(m=>{
+        const prefix=m.label.replace('大型メンテ','メンテ');
+        const m1=BA_LIVE_HISTORY.find(x=>x.type==='mainte'&&x.label===prefix);
+        return m1?(new Date(m.date+"T00:00:00")-new Date(m1.date+"T00:00:00"))/86400000:14;
+      });
+      const avgM2 = weightedAverage(m2Offsets2, x=>x) ?? 14;
+      const topM2Dow = m2s.length ? +weightedTopKey(m2s, m=>new Date(m.date+"T00:00:00").getDay()).top : 3; // データなければ水曜デフォルト
+
+      const kouyasaiDay = Math.min(mainDay+1, last);
+      const m1Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, mainDay+avgM1), topM1Dow);
+      const m2Day = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, m1Day+avgM2), topM2Dow);
+
+      const kouyasaiDow = DOW_JP[new Date(nextYear,nextMonth-1,kouyasaiDay).getDay()];
+      const m1Dow = DOW_JP[new Date(nextYear,nextMonth-1,m1Day).getDay()];
+      const m2Dow = DOW_JP[new Date(nextYear,nextMonth-1,m2Day).getDay()];
+
+      html += `<div style="margin-top:4px;margin-bottom:8px;font-weight:700;">🌙🔧⚡ 後続イベント予想</div>
+      <div style="background:#f0f4ff;border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid #c8d4f5;">
+        <div style="font-size:13.5px;font-weight:700;color:var(--note);">🌙 後夜祭（らいぶ最終日翌日）</div>
+        <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${kouyasaiDay}日（${kouyasaiDow}）</div>
+      </div>
+      <div style="background:#f0fff4;border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid #9be6b8;">
+        <div style="font-size:13.5px;font-weight:700;color:#1a7f4b;">🔧 1回目メンテ（周年イベント開始）</div>
+        <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${m1Day}日（${m1Dow}）11:00〜（予想）</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">本命日から+${m1Day-mainDay}日・過去平均+${avgM1}日</div>
+      </div>
+      <div style="background:#fff8e1;border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid #ffd777;">
+        <div style="font-size:13.5px;font-weight:700;color:#c77b1e;">⚡ 2回目大型メンテ（エリア追加等）</div>
+        <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${m2Day}日（${m2Dow}）11:00〜（予想）</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">1回目メンテから+${m2Day-m1Day}日・過去平均+${avgM2}日</div>
+      </div>`;
+    }
+
+  } else {
+    // ── 通常らいぶ月 ──
+    html += `<div style="color:var(--muted);padding:2px 0 10px;font-size:14px;">
+      ${nextYear}年${nextMonth}月は定期らいぶ月（1月・7月以外）です。
+    </div>`;
+
+    // 通常らいぶの曜日・週の集計（直近1年分のみ・古いデータは参考程度に留める）
+    const oneYearAgo = new Date(now.getFullYear()-1, now.getMonth(), now.getDate());
+    const recentRegular = BA_REGULAR_HISTORY.filter(x => new Date(x.liveDate+"T00:00:00") >= oneYearAgo);
+    const regularForStats = recentRegular.length >= 4 ? recentRegular : BA_REGULAR_HISTORY; // 件数が少なすぎる場合は全件にフォールバック
+
+    // 「第何週の何曜日」を組み合わせ単位で集計する（週と曜日を別々に最頻値化すると
+    // 実在しない組み合わせが選ばれるリスクがあるため、組み合わせごとに数える）
+    const comboStats = weightedTopKey(regularForStats, x=>{
+      const d = new Date(x.liveDate+"T00:00:00");
+      return `${weekOfMonth(x.liveDate)}-${d.getDay()}`;
+    });
+    const [topLW, topLD] = comboStats.top.split('-').map(Number);
+
+    const liveDay = getNthWeekday(nextYear,nextMonth,topLW,topLD) ||
+                    getNthWeekday(nextYear,nextMonth,topLW-1,topLD);
+    if(liveDay){
+      const liveDow=DOW_JP[new Date(nextYear,nextMonth-1,liveDay).getDay()];
+
+      const avgOff = weightedAverage(regularForStats, x=>x.offset);
+      // メンテ曜日の集計は直近ほど重みを大きくする。単純カウントだと同点になりやすく、
+      // その場合どの曜日が選ばれるかがオブジェクトのキー追加順に依存して不安定になるため、
+      // 直近を強めに優先して決着させる（共通ルール：直近1件=3倍、2件目=2倍）。
+      const topMD = +weightedTopKey(regularForStats, x=>new Date(x.mainteDate+"T00:00:00").getDay()).top;
+      const mDay = nearestDowInRange(nextYear, nextMonth, clampDayInMonth(nextYear, nextMonth, liveDay+avgOff), topMD);
+      const mDow=DOW_JP[new Date(nextYear,nextMonth-1,mDay).getDay()];
+
+      html+=`<div style="font-weight:700;margin-bottom:8px;">📅 通常らいぶ＋メンテ予想</div>
+      <div style="background:var(--ink);color:#fff;border-radius:10px;padding:11px 13px;margin-bottom:8px;">
+        <div style="font-size:15px;font-weight:700;">◉ らいぶ本命日</div>
+        <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${liveDay}日（${liveDow}）第${topLW}週 19:00〜（予想）</div>
+      </div>
+      <div style="background:#f0fff4;border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid #9be6b8;">
+        <div style="font-size:13.5px;font-weight:700;color:#1a7f4b;">🔧 メンテ予想</div>
+        <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${mDay}日（${mDow}）11:00〜（予想）</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">らいぶから+${mDay-liveDay}日・直近${regularForStats.length}件中最多${DOW_JP[topMD]}曜</div>
+      </div>`;
+    }
+  }
+
+  html += `<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;">
+    ※公式発表前の予測です。実際の日程と異なる場合があります。
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+// ─── 月次メンテ予想 ─────────────────────────────────────────
+function renderBAMainte(){
+  const el = document.getElementById('ba-mainte-content');
+  if(el.innerHTML) return;
+
+  // 最後のメンテ日から次回を予測
+  // 安全ガード：万が一データに今日より未来の日付が実績として混入していた場合、
+  // それは「実績」ではなく異常値なので除外する（実績は必ず過去日のはず）
+  const _today = new Date();
+  const todayStr = `${_today.getFullYear()}-${String(_today.getMonth()+1).padStart(2,'0')}-${String(_today.getDate()).padStart(2,'0')}`;
+  const sorted = getAllRegularMainteDates().filter(d => d <= todayStr);
+  if(sorted.length === 0){
+    el.innerHTML = '<div style="color:var(--muted);">メンテ実績データがありません。</div>';
+    return;
+  }
+  const lastDateStr = sorted[sorted.length-1];
+  const lastDate = new Date(lastDateStr+"T00:00:00");
+
+  // 間隔計算：BA_REGULAR_MAINTE_EXTRA/BA_REGULAR_HISTORYの収録網羅性は完全ではないため、
+  // 全区間の平均ではなく「直近5件の間隔のうち25日以内のもの」から算出する。
+  // 公式サイトが「定期メンテはおよそ14日〜20日のペース」と明記しているため、
+  // 25日超は取りこぼしによる歯抜けとみなし除外する。
+  const intervalsRaw=[];
+  for(let i=Math.max(1,sorted.length-6);i<sorted.length;i++){
+    const a=new Date(sorted[i-1]+"T00:00:00"), b=new Date(sorted[i]+"T00:00:00");
+    intervalsRaw.push(Math.round((b-a)/86400000));
+  }
+  const intervals = intervalsRaw.filter(x=>x<=25);
+  const avgInterval = intervals.length ? Math.round(intervals.reduce((a,b)=>a+b)/intervals.length) : 14;
+
+  // 曜日の最頻値（直近ほど重みを大きく：直近5件は3倍、直近6-10件は2倍、それ以前は1倍）。
+  // ※ここだけ recencyWeight() の統一ルール（直近1件のみ3倍）を使わず独自の重み方式にしている。
+  //   このデータは全期間で30件超と母数が多く、直近1件だけを特別視すると
+  //   1件の外れ値（臨時メンテ等）に予測が引っ張られやすいため、直近5件をまとめて優遇する方式が適切。
+  const dowCounts2={};
+  sorted.forEach((s,i)=>{
+    const d=new Date(s+"T00:00:00").getDay();
+    const fromEnd = sorted.length - 1 - i; // 0=最新
+    const weight = fromEnd < 5 ? 3 : fromEnd < 10 ? 2 : 1;
+    dowCounts2[d]=(dowCounts2[d]||0)+weight;
+  });
+  const topDow2=+Object.entries(dowCounts2).sort((a,b)=>b[1]-a[1])[0][0];
+
+  // 次回予想
+  function predictNext(base, interval, prefDow){
+    let d=new Date(base.getTime()+interval*86400000);
+    for(let i=-2;i<=2;i++){
+      const t=new Date(d.getTime()+i*86400000);
+      if(t.getDay()===prefDow) return t;
+    }
+    return d;
+  }
+
+  // 今日（0時）より前の予想は「過去」なので出さない：最終実績が古い/取りこぼしがあっても
+  // 今日以降の最初の周期まで進める（上限20回の安全弁付き）
+  const todayMid = new Date(_today.getFullYear(), _today.getMonth(), _today.getDate());
+  let next1 = predictNext(lastDate, avgInterval, topDow2);
+  for(let g=0; next1 < todayMid && g<20; g++) next1 = predictNext(next1, avgInterval, topDow2);
+  const next2 = predictNext(next1, avgInterval, topDow2);
+  const next3 = predictNext(next2, avgInterval, topDow2);
+
+  // 来月末まで全件生成
+  const now = new Date();
+  const endOfNextMonth = new Date(now.getFullYear(), now.getMonth()+2, 0); // 来月末日
+  const predictions = [];
+  let cur = next1;
+  while(cur <= endOfNextMonth){
+    predictions.push(new Date(cur));
+    cur = predictNext(cur, avgInterval, topDow2);
+    if(predictions.length > 10) break; // 安全上限
+  }
+  // 来月以降で終わっていない分も最低3件は出す
+  let extra = new Date(cur);
+  while(predictions.length < 3){
+    predictions.push(extra);
+    extra = predictNext(extra, avgInterval, topDow2);
+  }
+
+  function fmtD(d){
+    return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DOW_JP[d.getDay()]}）`;
+  }
+  function isNextMonth(d){
+    const nm = new Date(now.getFullYear(), now.getMonth()+1, 1);
+    return d.getFullYear()===nm.getFullYear() && d.getMonth()===nm.getMonth();
+  }
+
+  let html = `<div style="font-size:13px;color:var(--muted);margin-bottom:12px;">
+    直近${intervals.length}件の間隔から算出。平均 <b>${avgInterval}日</b> 周期・最多 <b>${DOW_JP[topDow2]}曜</b>。
+  </div>`;
+
+  predictions.forEach((d,i)=>{
+    const isFirst = i===0;
+    const inNext  = isNextMonth(d);
+    const bg = isFirst ? 'var(--ink)' : inNext ? '#f0fff4' : '#f3f4f7';
+    const col = isFirst ? '#fff' : 'var(--ink)';
+    const border = isFirst ? 'var(--ink)' : inNext ? '#9be6b8' : 'var(--line)';
+    const label = isFirst ? '◉ 次回' : inNext ? `◎ ${i+1}回目（来月）` : `◎ ${i+1}回目`;
+    html+=`<div style="background:${bg};color:${col};border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid ${border};">
+      <div style="font-size:14px;font-weight:700;">${label} 予想メンテ</div>
+      <div style="font-size:14px;margin-top:2px;">${fmtD(d)} 11:00〜（予想）</div>
+    </div>`;
+  });
+
+  html += `<div style="font-size:12px;color:var(--muted);margin-top:4px;">
+    前回実績：${fmtDateJP(lastDateStr)}（${DOW_JP[lastDate.getDay()]}）<br>
+    ※公式発表前の予測です。
+  </div>`;
+
+  // 直近の実績リスト
+  html += `<div style="font-weight:700;margin:16px 0 8px;">直近のメンテ実績（新しい順）</div>`;
+  [...sorted].reverse().slice(0,10).forEach(s=>{
+    const d=new Date(s+"T00:00:00");
+    const dc2=d.getDay()===0?'color:var(--live)':d.getDay()===6?'color:var(--video)':'';
+    html+=`<div style="display:flex;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13.5px;">
+      <span style="font-variant-numeric:tabular-nums;">${s}</span>
+      <span style="${dc2}">(${DOW_JP[d.getDay()]})</span>
+    </div>`;
+  });
+  html += `<div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+    ※予測には直近の実績を優先的に使用しています。古いデータは参考表示のみです。
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+</script>
+</body>
+</html>
