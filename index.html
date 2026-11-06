@@ -44,7 +44,7 @@
   header.app p{margin:4px 0 0;font-size:12.5px;color:#aeb4c2;letter-spacing:.02em;}
 
   /* 最上位タブ */
-  .toptabs{display:flex;gap:6px;margin:14px 0;}
+  .toptabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:14px 0;}
   .toptabs button{
     flex:1;border:1px solid var(--line);background:var(--surface);color:var(--muted);
     padding:11px 8px;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;
@@ -139,6 +139,31 @@
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
   .pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;color:#fff;}
   .pill.video{background:var(--video);} .pill.collab{background:#c77b1e;} .pill.other{background:var(--muted);}
+  /* 活動まとめ */
+  .bar-row{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;font-variant-numeric:tabular-nums;}
+  .bar-row .lb{width:96px;flex:0 0 auto;color:var(--muted);}
+  .bar-row .bar{flex:1;height:10px;background:#eef0f4;border-radius:5px;overflow:hidden;}
+  .bar-row .bar i{display:block;height:100%;background:var(--ink);border-radius:5px;}
+  .bar-row .n{width:46px;text-align:right;flex:0 0 auto;}
+  .sub-h{font-size:13px;font-weight:700;margin:16px 0 6px;color:var(--ink);}
+  .sub-h:first-child{margin-top:0;}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+  .cal-head b{font-size:15px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .cal-dow{text-align:center;font-size:12px;color:var(--muted);font-weight:700;padding:2px 0;}
+  .cal-dow.sun{color:var(--live);} .cal-dow.sat{color:var(--video);}
+  .cal-cell{min-height:58px;border:1px solid var(--line);border-radius:8px;background:#fbfbfc;padding:3px;
+    text-align:left;font:inherit;font-size:12px;cursor:pointer;color:var(--ink);display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .cal-cell.out{background:transparent;border-color:transparent;cursor:default;}
+  .cal-cell.today .dn{background:var(--ink);color:#fff;border-radius:999px;padding:0 5px;}
+  .cal-cell.sel{background:#e6e9f0;border-color:var(--ink);}
+  .cal-cell.both{box-shadow:inset 0 0 0 2px var(--ink);}
+  .cal-cell .dn{font-weight:700;font-size:12px;align-self:flex-start;}
+  .mk{display:inline-block;font-size:11px;font-weight:700;padding:0 5px;border-radius:6px;line-height:1.5;
+    color:#fff;background:var(--c,#697184);border:1px dashed transparent;white-space:nowrap;}
+  .mk.up{background:#fff;color:var(--c,#697184);border-color:var(--c,#697184);}
+  .mk.c0{--c:#c2386f;} .mk.c1{--c:#2f6f8f;} .mk.c2{--c:#7a5cc7;} .mk.c3{--c:#1f9d63;}
+  .legend{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;}
   .hide{display:none !important;}
   .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--ink);
     border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px;}
@@ -159,6 +184,7 @@
     <button id="tab-yt" role="tab" aria-selected="true" onclick="switchTop('yt')">YouTube</button>
     <button id="tab-tw" role="tab" aria-selected="false" onclick="switchTop('tw')">Twitter / X</button>
     <button id="tab-ba" role="tab" aria-selected="false" onclick="switchTop('ba')">ブルアカらいぶ</button>
+    <button id="tab-act" role="tab" aria-selected="false" onclick="switchTop('act')">活動まとめ</button>
   </div>
 
   <!-- ============ YouTube ============ -->
@@ -266,6 +292,19 @@
       <p id="tw-status" class="status"></p>
     </div>
 
+    <div class="card" id="tw-sets-card">
+      <h2>定型セット（推しごと）<span id="tw-sets-oshi" style="margin-left:6px;"></span></h2>
+      <p style="font-size:13px;color:var(--muted);margin:-4px 0 8px;">
+        よく使うキーワードの組み合わせを保存できます。アカウント・年・月は上の入力値を使います。
+      </p>
+      <ul class="list" id="tw-sets-list"></ul>
+      <div class="row" style="margin-top:10px;">
+        <input id="tw-set-name" type="text" placeholder="セット名（例：告知）" />
+        <button type="button" class="ghost" onclick="saveTwSet()">上のキーワードを保存</button>
+      </div>
+      <p id="tw-sets-status" class="status"></p>
+    </div>
+
     <div id="tw-out" class="card hide">
       <div class="resulthead">
         <span class="label" id="tw-rangelabel"></span>
@@ -337,6 +376,37 @@
     </div>
   </section>
 
+  <!-- ============ 活動まとめ ============ -->
+  <section id="panel-act" class="hide">
+    <div class="card">
+      <h2>活動データ（推し2人分）</h2>
+      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px;">
+        YouTubeタブに入力したAPIキーで、直近180日の配信と予定済みの配信を取得します（プレミア公開など16分未満は除外）。
+      </p>
+      <button id="act-go" class="primary" style="background:var(--ink);" onclick="runActivity()">最新の活動を取得</button>
+      <p id="act-status" class="status"></p>
+    </div>
+    <div id="act-body" class="hide">
+      <div class="card">
+        <h2>予定済みの配信</h2>
+        <ul id="act-upcoming" class="list"></ul>
+        <div style="margin-top:10px;">
+          <button id="act-copy" class="ghost" style="width:100%;padding:12px;" onclick="copyUpcoming()">予定済みの一覧をコピー</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2>月間カレンダー</h2>
+        <div id="act-cal"></div>
+        <div id="act-day" style="margin-top:12px;"></div>
+      </div>
+      <div class="card">
+        <h2>推し別の集計</h2>
+        <div class="chips" id="act-chips"></div>
+        <div id="act-stats"></div>
+      </div>
+    </div>
+  </section>
+
 </div>
 
 <script>
@@ -345,7 +415,7 @@
 // このファイルの最終更新日（デプロイのたびに更新すること）。
 // 画面下部に小さく表示することで、実機で開いた内容が最新版かどうかを
 // キャッシュに惑わされず目視確認できるようにする。
-const BUILD_DATE = "2026-10-26";
+const BUILD_DATE = "2026-11-05";
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('build-info');
   if(el) el.textContent = `build: ${BUILD_DATE}`;
@@ -401,6 +471,7 @@ function selectOshi(key){
       if(el) el.setAttribute('aria-pressed', pressed);
     });
   });
+  renderTwSets();
 }
 
 /* ---------- 年/月セレクトの初期化 ---------- */
@@ -472,10 +543,13 @@ function switchTop(which){
   document.getElementById('tab-yt').setAttribute('aria-selected', which==='yt');
   document.getElementById('tab-tw').setAttribute('aria-selected', which==='tw');
   document.getElementById('tab-ba').setAttribute('aria-selected', which==='ba');
+  document.getElementById('tab-act').setAttribute('aria-selected', which==='act');
   document.getElementById('panel-yt').classList.toggle('hide', which!=='yt');
   document.getElementById('panel-tw').classList.toggle('hide', which!=='tw');
   document.getElementById('panel-ba').classList.toggle('hide', which!=='ba');
+  document.getElementById('panel-act').classList.toggle('hide', which!=='act');
   if(which==='ba') switchBA('pred');
+  if(which==='act') renderActivity();
 }
 
 let currentKind = 'live';
@@ -798,12 +872,13 @@ function nearestDowInRange(y, m1, baseDay, prefDow){
 }
 
 // ─── 直近優先の重み付け集計（周年・通常らいぶ・月次メンテ予測で共通利用） ─────
-// 配列の末尾（＝最新）ほど重みを大きくする。統一ルール：直近1件=3倍、2件目=2倍、それ以外=1倍。
+// 配列の末尾（＝最新）ほど重みを大きくする。統一ルール：直近1件=5倍、2件目=3倍、3件目=2倍、それ以外=1倍。
+// （2026-11-05 変更：直近の実績が1週間遅れていた件を受け、従来の 3/2/1 から直近をさらに強めた）
 // 過去、この重み付けが実装ごとにバラバラだったことが「最頻値が実態と合わない」
 // バグの温床になっていたため、判定ロジックを1箇所に集約している。
 function recencyWeight(index, length){
   const fromEnd = length - 1 - index;
-  return fromEnd === 0 ? 3 : fromEnd === 1 ? 2 : 1;
+  return fromEnd === 0 ? 5 : fromEnd === 1 ? 3 : fromEnd === 2 ? 2 : 1;
 }
 // arr の各要素から keyFn(item) でキーを取り、直近優先の重み付き集計をして
 // 最頻キーを求める。キーは数値・文字列どちらでも可（呼び出し側で必要なら数値化する）。
@@ -887,9 +962,8 @@ const BA_REGULAR_HISTORY = [
   { label:"2025/12/20 くりぱSP",           liveDate:"2025-12-20", mainteDate:"2025-12-24", offset:4,  liveTime:"19:00" },
   { label:"2026/04/19 すぷりんぐふぃーばーSP", liveDate:"2026-04-19", mainteDate:"2026-04-21", offset:2,  liveTime:"19:00" },
   { label:"2026/06/20 ざ☆すたーとおぶさまーSP", liveDate:"2026-06-20", mainteDate:"2026-06-24", offset:4,  liveTime:"19:00" },
-  { label:"2026/08/26 ブルアカらいぶ！", liveDate:"2026-08-26", mainteDate:"2026-08-26", offset:0, liveTime:"23:59" },
-  { label:"2026/10/25 ブルアカらいぶ 2026-10-", liveDate:"2026-10-25", mainteDate:"2026-10-28", offset:3, liveTime:"19:00" },
-  { label:"2026/11/25 ブルアカらいぶ！秋の夜長、いかが", liveDate:"2026-11-25", mainteDate:"2026-11-25", offset:0, liveTime:"23:59" },
+  // 2026-10-25：らいぶ日=4gamer(2026/10/25記事)・game8で確認／開始19:00=game8のみ（公式一次ソース未確認）／メンテ10/28=4gamer・game8で確認
+  { label:"2026/10/25 秋の夜長、いかがおすごしですか？SP", liveDate:"2026-10-25", mainteDate:"2026-10-28", offset:3,  liveTime:"19:00" },
 ];
 
 // 定期メンテ実績（日付のみ・BA_REGULAR_HISTORYに紐付かない単発の確認済みメンテ日）
@@ -903,23 +977,8 @@ const BA_REGULAR_MAINTE_EXTRA = [
   "2026-04-01", // 水（14日間隔）
   "2026-05-27", // 水
   "2026-07-08", // 水
-  "2026-03-22",
-  "2026-03-23",
-  "2026-04-29",
-  "2026-07-29",
-  "2026-08-05",
-  "2026-09-23",
-  "2026-10-07",
-  "2026-12-24",
-  "2026-12-27",
-  "2026-12-28",
-  "2027-02-10",
-  "2027-02-11",
-  "2027-03-08",
-  "2027-03-22",
-  "2027-03-23",
-  "2026-10-28",
-  "2026-11-11",
+  "2026-09-23", // 水 11:00〜19:00（公式告知）
+  "2026-10-07", // 水 11:00〜17:00（イベント開始メンテ）
 ];
 // 全定期メンテ日（BA_REGULAR_HISTORYのmainteDate + 単発分 + 周年系メンテ実績、重複排除・ソート済み）
 // ※ BA_LIVE_HISTORY内のmainte/mainte2（周年・ハーフ周年時のメンテ）も
@@ -1227,16 +1286,20 @@ function renderBANextMonth(){
     const recentRegular = BA_REGULAR_HISTORY.filter(x => new Date(x.liveDate+"T00:00:00") >= oneYearAgo);
     const regularForStats = recentRegular.length >= 4 ? recentRegular : BA_REGULAR_HISTORY; // 件数が少なすぎる場合は全件にフォールバック
 
-    // 「第何週の何曜日」を組み合わせ単位で集計する（週と曜日を別々に最頻値化すると
-    // 実在しない組み合わせが選ばれるリスクがあるため、組み合わせごとに数える）
-    const comboStats = weightedTopKey(regularForStats, x=>{
-      const d = new Date(x.liveDate+"T00:00:00");
-      return `${weekOfMonth(x.liveDate)}-${d.getDay()}`;
-    });
-    const [topLW, topLD] = comboStats.top.split('-').map(Number);
+    // 2026-11-05 変更：「第N週×曜日」の組み合わせ集計をやめ、
+    // ①日付（1〜31日）の直近優先・重み付き平均 ②曜日の直近優先・重み付き最頻値 を別々に出し、
+    // 平均日付に最も近い該当曜日の日を本命とする（第3週→第4週のように週がずれる月でも
+    // 直近の傾向に追従しやすくするため）。
+    const dayMean = weightedAverage(regularForStats, x=>new Date(x.liveDate+"T00:00:00").getDate());
+    const topLD = +weightedTopKey(regularForStats, x=>new Date(x.liveDate+"T00:00:00").getDay()).top;
+    let liveDay = null, bestDiff = 1e9;
+    for(let d=1; d<=new Date(nextYear,nextMonth,0).getDate(); d++){
+      if(new Date(nextYear,nextMonth-1,d).getDay()!==topLD) continue;
+      const diff = Math.abs(d-dayMean);
+      if(diff < bestDiff){ bestDiff = diff; liveDay = d; }
+    }
+    const topLW = liveDay ? weekOfMonth(`${nextYear}-${pad2(nextMonth)}-${pad2(liveDay)}`) : 0;
 
-    const liveDay = getNthWeekday(nextYear,nextMonth,topLW,topLD) ||
-                    getNthWeekday(nextYear,nextMonth,topLW-1,topLD);
     if(liveDay){
       const liveDow=DOW_JP[new Date(nextYear,nextMonth-1,liveDay).getDay()];
 
@@ -1256,7 +1319,7 @@ function renderBANextMonth(){
       <div style="background:#f0fff4;border-radius:10px;padding:10px 13px;margin-bottom:7px;border:1px solid #9be6b8;">
         <div style="font-size:13.5px;font-weight:700;color:#1a7f4b;">🔧 メンテ予想</div>
         <div style="font-size:14px;margin-top:2px;">${nextYear}年${nextMonth}月${mDay}日（${mDow}）11:00〜（予想）</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:2px;">らいぶから+${mDay-liveDay}日・直近${regularForStats.length}件中最多${DOW_JP[topMD]}曜</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">らいぶから+${mDay-liveDay}日・直近${regularForStats.length}件・直近重視で${DOW_JP[topMD]}曜</div>
       </div>`;
     }
   }
@@ -1321,7 +1384,11 @@ function renderBAMainte(){
     return d;
   }
 
-  const next1 = predictNext(lastDate, avgInterval, topDow2);
+  // 今日（0時）より前の予想は「過去」なので出さない：最終実績が古い/取りこぼしがあっても
+  // 今日以降の最初の周期まで進める（上限20回の安全弁付き）
+  const todayMid = new Date(_today.getFullYear(), _today.getMonth(), _today.getDate());
+  let next1 = predictNext(lastDate, avgInterval, topDow2);
+  for(let g=0; next1 < todayMid && g<20; g++) next1 = predictNext(next1, avgInterval, topDow2);
   const next2 = predictNext(next1, avgInterval, topDow2);
   const next3 = predictNext(next2, avgInterval, topDow2);
 
@@ -1387,6 +1454,483 @@ function renderBAMainte(){
   </div>`;
 
   el.innerHTML = html;
+}
+
+
+/* ===================== X検索：定型セット（推しごと） ===================== */
+// 保存形式：localStorage 'tw_sets' = { natori:[{name,kw}], shigure:[...] }
+// kw は改行区切りのキーワード文字列（キーワード欄と同じ形式）。
+// 未保存の推しには下の初期セット（あとから削除・追加できる）を表示する。
+const TW_DEFAULT_SETS = [
+  { name:"告知",       kw:"告知\n配信予定\nお知らせ" },
+  { name:"凸・コラボ", kw:"凸\nコラボ\n同時視聴" },
+  { name:"動画・投稿", kw:"動画\n投稿\n新作" },
+];
+function twCurrentOshi(){
+  const k = store.get('oshi_selected');
+  return (k && OSHI_PRESETS[k]) ? k : Object.keys(OSHI_PRESETS)[0];
+}
+function twSetsAll(){
+  try{ const o = JSON.parse(store.get('tw_sets')||'{}'); return (o && typeof o==='object') ? o : {}; }
+  catch(e){ return {}; }
+}
+function twSetsGet(key){
+  const all = twSetsAll();
+  return Array.isArray(all[key]) ? all[key] : TW_DEFAULT_SETS.map(x=>({name:x.name, kw:x.kw}));
+}
+function twSetsPut(key, list){
+  const all = twSetsAll();
+  all[key] = list;
+  store.set('tw_sets', JSON.stringify(all));
+}
+function renderTwSets(){
+  const ul = document.getElementById('tw-sets-list');
+  if(!ul) return;
+  const key = twCurrentOshi();
+  const label = document.getElementById('tw-sets-oshi');
+  if(label) label.textContent = '／ ' + OSHI_PRESETS[key].label;
+  const list = twSetsGet(key);
+  if(!list.length){
+    ul.innerHTML = '<li class="empty">保存済みのセットはありません。</li>';
+    return;
+  }
+  ul.innerHTML = list.map((x,i)=>{
+    const kws = x.kw.split(/[\s,、　]+/).filter(Boolean).join(' / ');
+    return `<li>
+      <div class="title" style="font-weight:700;margin-top:0;">${escapeHtml(x.name)}</div>
+      <div class="meta">${escapeHtml(kws)}</div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <button type="button" class="ghost" onclick="applyTwSet(${i})">キーワードに反映</button>
+        <button type="button" class="ghost" onclick="openTwSet(${i})">Xで開く ↗</button>
+        <button type="button" class="ghost" onclick="deleteTwSet(${i})">削除</button>
+      </div>
+    </li>`;
+  }).join('');
+}
+function applyTwSet(i){
+  const list = twSetsGet(twCurrentOshi());
+  if(!list[i]) return false;
+  document.getElementById('tw-keywords').value = list[i].kw;
+  buildQuery();
+  return !document.getElementById('tw-status').className.includes('err');
+}
+function openTwSet(i){
+  if(!applyTwSet(i)) return;
+  const href = document.getElementById('tw-open').href;
+  if(href && href !== '#') window.open(href, '_blank', 'noopener');
+}
+function saveTwSet(){
+  const key = twCurrentOshi();
+  const nameEl = document.getElementById('tw-set-name');
+  const name = nameEl.value.trim();
+  const kw = document.getElementById('tw-keywords').value.trim();
+  if(!name){ setStatus('tw-sets-status','セット名を入力してください。','err'); return; }
+  if(!kw){ setStatus('tw-sets-status','キーワード欄が空です。','err'); return; }
+  const list = twSetsGet(key);
+  const idx = list.findIndex(x=>x.name===name);
+  if(idx>=0) list[idx] = {name, kw}; else list.push({name, kw});
+  twSetsPut(key, list);
+  nameEl.value = '';
+  renderTwSets();
+  setStatus('tw-sets-status', idx>=0 ? `「${escapeHtml(name)}」を上書き保存しました。` : `「${escapeHtml(name)}」を保存しました。`, 'ok');
+}
+function deleteTwSet(i){
+  const key = twCurrentOshi();
+  const list = twSetsGet(key);
+  if(!list[i]) return;
+  const name = list[i].name;
+  list.splice(i,1);
+  twSetsPut(key, list);
+  renderTwSets();
+  setStatus('tw-sets-status', `「${escapeHtml(name)}」を削除しました。`, 'ok');
+}
+renderTwSets();
+
+/* ===================== 活動まとめ ===================== */
+// YouTubeの公開配信を直近ACT_DAYS日ぶん取得し、傾向集計・配信間隔・予定済み一覧・月間カレンダーに使う。
+// 保存形式：localStorage 'act_cache_v1' = { fetchedAt, cutoff, data:{ natori:[{id,t,ms,st}], ... } }
+//   st: 'done'=終了済み配信 / 'live'=取得時点で配信中 / 'up'=予定済み（開始前）
+const ACT_DAYS = 180;
+const ACT_CACHE_KEY = 'act_cache_v1';
+const ACT_STALE_MS = 6*3600*1000;   // 開始予定を6時間以上過ぎた「予定」は表示しない
+const ACT_LIVE_MAX_MS = 12*3600*1000; // 取得時「配信中」でも12時間以上経っていれば終了扱い
+const ACT_HALF_LIFE_DAYS = 30;      // 傾向集計の重み：30日で半減（直近を強く反映）
+let actData = null;
+let actView = null;
+let calY = 0, calM = 0, calSel = '';
+
+function oshiKeys(){ return Object.keys(OSHI_PRESETS); }
+function oshiMark(k){
+  return `<span class="mk c${oshiKeys().indexOf(k)}">${escapeHtml(OSHI_PRESETS[k].label.charAt(0))}</span>`;
+}
+function todayJst(){ return jstParts(new Date()); }
+function dayDiff(aStr, bStr){ // bStr - aStr（日数）
+  const a = aStr.split('-').map(Number), b = bStr.split('-').map(Number);
+  return Math.round((Date.UTC(b[0],b[1]-1,b[2]) - Date.UTC(a[0],a[1]-1,a[2]))/86400000);
+}
+// 取得時点の状態を、現在時刻に合わせて補正する
+function actEffSt(e){
+  if(e.st==='live' && Date.now()-e.ms > ACT_LIVE_MAX_MS) return 'done';
+  return e.st;
+}
+function actErrMsg(e){
+  let msg = e.message || '取得に失敗しました。';
+  if(e.reason==='quotaExceeded') msg = '本日のAPIクォータ上限に達しました。明日また試してください。';
+  if(e.reason==='keyInvalid' || e.reason==='badRequest') msg = 'APIキーが無効か、設定（API有効化・制限）を確認してください。';
+  if(e.reason==='forbidden') msg = 'APIキーの制限を確認してください（ローカル利用は制限「なし」推奨）。';
+  return msg;
+}
+
+async function fetchActivityFor(apiKey, handle, cutoffMs){
+  const channelId = await resolveChannel(handle, apiKey);
+  const uploads = 'UU' + channelId.slice(2);
+  const ids = [];
+  let pageToken = '', pages = 0, stop = false;
+  while(!stop && pages < 20){
+    const params = { part:'contentDetails', playlistId:uploads, maxResults:50 };
+    if(pageToken) params.pageToken = pageToken;
+    const j = await yapi('playlistItems', params, apiKey);
+    for(const it of (j.items||[])){
+      const t = new Date(it.contentDetails.videoPublishedAt).getTime();
+      if(t < cutoffMs){ stop = true; break; }
+      ids.push(it.contentDetails.videoId);
+    }
+    pageToken = j.nextPageToken || '';
+    if(!pageToken) break;
+    pages++;
+  }
+  const out = [];
+  for(let i=0;i<ids.length;i+=50){
+    const j = await yapi('videos',{part:'snippet,liveStreamingDetails,contentDetails',id:ids.slice(i,i+50).join(',')},apiKey);
+    for(const v of (j.items||[])){
+      const lsd = v.liveStreamingDetails;
+      if(!lsd) continue;
+      const lbc = v.snippet.liveBroadcastContent;
+      if(lbc==='upcoming'){
+        if(!lsd.scheduledStartTime) continue;
+        out.push({ id:v.id, t:v.snippet.title, ms:new Date(lsd.scheduledStartTime).getTime(), st:'up' });
+        continue;
+      }
+      if(!lsd.actualStartTime) continue;
+      const ms = new Date(lsd.actualStartTime).getTime();
+      if(lbc==='live'){
+        out.push({ id:v.id, t:v.snippet.title, ms, st:'live' });
+        continue;
+      }
+      let sec = null;
+      if(lsd.actualEndTime) sec = (new Date(lsd.actualEndTime) - new Date(lsd.actualStartTime))/1000;
+      else if(v.contentDetails) sec = parseDuration(v.contentDetails.duration);
+      if(sec!==null && sec < PREMIERE_MAX_SEC) continue; // プレミア公開などは配信に数えない
+      if(ms < cutoffMs) continue;
+      out.push({ id:v.id, t:v.snippet.title, ms, st:'done' });
+    }
+  }
+  out.sort((a,b)=>a.ms-b.ms);
+  return out;
+}
+
+async function runActivity(){
+  const keyEl = document.getElementById('yt-key');
+  const apiKey = ((keyEl && keyEl.value) || store.get('yt_key') || '').trim();
+  const btn = document.getElementById('act-go');
+  if(!apiKey){ setStatus('act-status','YouTubeタブでAPIキーを入力してください。','err'); return; }
+  store.set('yt_key', apiKey);
+  btn.disabled = true;
+  const cutoff = Date.now() - ACT_DAYS*86400000;
+  const data = {};
+  try{
+    for(const k of oshiKeys()){
+      setStatus('act-status', `<span class="spin"></span>${escapeHtml(OSHI_PRESETS[k].label)} を取得中…`);
+      data[k] = await fetchActivityFor(apiKey, OSHI_PRESETS[k].ytHandle, cutoff);
+    }
+    actData = { fetchedAt: Date.now(), cutoff, data };
+    store.set(ACT_CACHE_KEY, JSON.stringify(actData));
+    renderActivity();
+    const sum = oshiKeys().map(k=>{
+      const n = data[k].filter(e=>e.st!=='up').length;
+      const u = data[k].filter(e=>e.st==='up').length;
+      return `${OSHI_PRESETS[k].label}：配信${n}件・予定${u}件`;
+    }).join(' ／ ');
+    setStatus('act-status', '取得完了：' + escapeHtml(sum), 'ok');
+  }catch(e){
+    setStatus('act-status', escapeHtml(actErrMsg(e)), 'err');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+function loadActCache(){
+  try{
+    const o = JSON.parse(store.get(ACT_CACHE_KEY)||'null');
+    if(o && o.data && o.cutoff) actData = o;
+  }catch(e){}
+}
+
+function renderActivity(){
+  if(!actData) loadActCache();
+  const body = document.getElementById('act-body');
+  if(!actData){ body.classList.add('hide'); return; }
+  body.classList.remove('hide');
+  if(!calY){
+    const p = todayJst();
+    calY = p.y; calM = p.mo; calSel = fmtDate(p);
+  }
+  if(!actView || !OSHI_PRESETS[actView]) actView = twCurrentOshi();
+  const st = document.getElementById('act-status');
+  if(st && !st.innerHTML){
+    const p = jstParts(new Date(actData.fetchedAt));
+    setStatus('act-status', `最終取得：${fmtDate(p)} ${fmtTime(p)}（日本時間）`);
+  }
+  renderUpcoming();
+  renderCalendar();
+  renderStats();
+}
+
+/* ---------- 予定済みの配信 ---------- */
+function actUpcoming(){
+  const lim = Date.now() - ACT_STALE_MS;
+  const arr = [];
+  oshiKeys().forEach(k=>{
+    (actData.data[k]||[]).forEach(e=>{
+      const st = actEffSt(e);
+      if(st==='live' || (st==='up' && e.ms >= lim)) arr.push({...e, k, st});
+    });
+  });
+  arr.sort((a,b)=>a.ms-b.ms);
+  return arr;
+}
+function renderUpcoming(){
+  const ul = document.getElementById('act-upcoming');
+  const arr = actUpcoming();
+  if(!arr.length){
+    ul.innerHTML = '<li class="empty">取得時点で、予定済みの配信は見つかりませんでした。</li>';
+    return;
+  }
+  ul.innerHTML = arr.map(e=>{
+    const p = jstParts(new Date(e.ms));
+    const dc = p.dow===0?'sun':(p.dow===6?'sat':'');
+    const tm = e.st==='live' ? '配信中' : `${fmtTime(p)}〜予定`;
+    return `<li>
+      <div class="item-top">
+        <span class="date">${fmtDate(p)}</span>
+        <span class="dow ${dc}">(${DOW[p.dow]})</span>
+        <span class="time live">${tm}</span>
+      </div>
+      <div class="title">${oshiMark(e.k)} ${escapeHtml(e.t)}</div>
+      <div class="meta"><a href="https://www.youtube.com/watch?v=${e.id}" target="_blank" rel="noopener">動画を開く</a></div>
+    </li>`;
+  }).join('');
+}
+function copyUpcoming(){
+  const arr = actUpcoming();
+  const lines = arr.map(e=>{
+    const p = jstParts(new Date(e.ms));
+    const tm = e.st==='live' ? '配信中' : `${fmtTime(p)}〜予定`;
+    return `${p.mo}月${p.d}日(${DOW[p.dow]}) ${tm}  【${OSHI_PRESETS[e.k].label}】${e.t}`;
+  });
+  copyText(lines.length ? lines.join('\n') : '（なし）', 'act-copy', 'live');
+}
+
+/* ---------- 月間カレンダー（推し2人分を並べて表示） ---------- */
+function actDayMap(){
+  const map = {};
+  const lim = Date.now() - ACT_STALE_MS;
+  oshiKeys().forEach(k=>{
+    (actData.data[k]||[]).forEach(e=>{
+      const st = actEffSt(e);
+      if(st==='up' && e.ms < lim) return;
+      const p = jstParts(new Date(e.ms));
+      const dk = fmtDate(p);
+      (map[dk] = map[dk] || []).push({...e, k, st, p});
+    });
+  });
+  Object.keys(map).forEach(dk=>map[dk].sort((a,b)=>a.ms-b.ms));
+  return map;
+}
+function calShift(delta){
+  let y = calY, m = calM + delta;
+  while(m<1){ m+=12; y--; }
+  while(m>12){ m-=12; y++; }
+  calY = y; calM = m;
+  const t = todayJst();
+  calSel = (t.y===y && t.mo===m) ? fmtDate(t) : `${y}-${pad2(m)}-01`;
+  renderCalendar();
+}
+function calToday(){
+  const t = todayJst();
+  calY = t.y; calM = t.mo; calSel = fmtDate(t);
+  renderCalendar();
+}
+function calPick(dk){ calSel = dk; renderCalendar(); }
+
+function renderCalendar(){
+  const box = document.getElementById('act-cal');
+  const map = actDayMap();
+  const today = fmtDate(todayJst());
+  const first = new Date(Date.UTC(calY, calM-1, 1)).getUTCDay();
+  const days = new Date(Date.UTC(calY, calM, 0)).getUTCDate();
+  let h = `<div class="cal-head">
+    <button type="button" class="ghost" onclick="calShift(-1)">‹ 前月</button>
+    <b>${calY}年${calM}月</b>
+    <button type="button" class="ghost" onclick="calShift(1)">次月 ›</button>
+  </div>
+  <div class="cal-grid">`;
+  DOW.forEach((d,i)=>{ h += `<div class="cal-dow ${i===0?'sun':i===6?'sat':''}">${d}</div>`; });
+  for(let i=0;i<first;i++) h += '<div class="cal-cell out"></div>';
+  for(let d=1; d<=days; d++){
+    const dk = `${calY}-${pad2(calM)}-${pad2(d)}`;
+    const es = map[dk] || [];
+    const ks = oshiKeys().filter(k=>es.some(e=>e.k===k));
+    const marks = ks.map(k=>{
+      const mine = es.filter(e=>e.k===k);
+      const allUp = mine.every(e=>e.st==='up');
+      return `<span class="mk c${oshiKeys().indexOf(k)}${allUp?' up':''}">${escapeHtml(OSHI_PRESETS[k].label.charAt(0))}${mine.length>1?mine.length:''}</span>`;
+    }).join('');
+    const cls = ['cal-cell', dk===today?'today':'', dk===calSel?'sel':'', ks.length>=2?'both':''].filter(Boolean).join(' ');
+    h += `<button type="button" class="${cls}" onclick="calPick('${dk}')"><span class="dn">${d}</span>${marks}</button>`;
+  }
+  h += '</div>';
+  const cut = fmtDate(jstParts(new Date(actData.cutoff)));
+  h += `<div class="legend">
+    ${oshiKeys().map(k=>oshiMark(k)+' '+escapeHtml(OSHI_PRESETS[k].label)).join('　')}
+    <span class="mk up c0" style="--c:#697184;">予</span> 予定　太枠＝2人とも配信あり<br>
+    取得範囲：${cut} 以降（それ以前の日付は空欄です）
+  </div>`;
+  box.innerHTML = h;
+
+  // 選択日の内訳
+  const dayBox = document.getElementById('act-day');
+  const es = map[calSel] || [];
+  const sp = calSel.split('-').map(Number);
+  const sdow = new Date(Date.UTC(sp[0], sp[1]-1, sp[2])).getUTCDay();
+  let dh = `<div class="sub-h">${sp[0]}年${sp[1]}月${sp[2]}日(${DOW[sdow]})</div>`;
+  if(!es.length){
+    dh += '<div class="empty" style="padding:10px 0;">この日の配信はありません。</div>';
+  }else{
+    dh += '<ul class="list">' + es.map(e=>{
+      const tm = e.st==='live' ? '配信中' : `${fmtTime(e.p)}${e.st==='up'?'〜予定':''}`;
+      return `<li>
+        <div class="item-top"><span class="date">${tm}</span><span class="time live">${oshiMark(e.k)}</span></div>
+        <div class="title">${escapeHtml(e.t)}</div>
+        <div class="meta"><a href="https://www.youtube.com/watch?v=${e.id}" target="_blank" rel="noopener">動画を開く</a></div>
+      </li>`;
+    }).join('') + '</ul>';
+  }
+  dayBox.innerHTML = dh;
+}
+
+/* ---------- 推し別の集計（傾向・配信間隔・月別） ---------- */
+function actSetView(k){ actView = k; renderStats(); }
+
+const ACT_BANDS = [
+  { n:'深夜 0〜5時',  a:0,  b:5  },
+  { n:'朝 5〜11時',   a:5,  b:11 },
+  { n:'昼 11〜17時',  a:11, b:17 },
+  { n:'夕 17〜20時',  a:17, b:20 },
+  { n:'夜 20〜24時',  a:20, b:24 },
+];
+function barRow(label, ratio, nText){
+  const w = Math.max(0, Math.min(100, Math.round(ratio*100)));
+  return `<div class="bar-row"><span class="lb">${escapeHtml(label)}</span><span class="bar"><i style="width:${w}%"></i></span><span class="n">${escapeHtml(nText)}</span></div>`;
+}
+function topIdx(arr){ // 最大値のindex（同値は新しい方＝後ろ優先ではなく先頭。呼び出し側で並びを管理）
+  let bi = 0;
+  arr.forEach((v,i)=>{ if(v>arr[bi]) bi = i; });
+  return bi;
+}
+
+function renderStats(){
+  const chips = document.getElementById('act-chips');
+  chips.innerHTML = oshiKeys().map(k=>
+    `<button type="button" class="chip" aria-pressed="${k===actView}" onclick="actSetView('${k}')">${escapeHtml(OSHI_PRESETS[k].label)}</button>`
+  ).join('');
+  const box = document.getElementById('act-stats');
+  const all = actData.data[actView] || [];
+  const arr = all.filter(e=>actEffSt(e)!=='up');
+  const ups = all.filter(e=>actEffSt(e)==='up' && e.ms >= Date.now()-ACT_STALE_MS);
+  const liveNow = all.filter(e=>actEffSt(e)==='live');
+  if(!arr.length){
+    box.innerHTML = '<div class="empty">取得範囲に配信が見つかりませんでした。</div>';
+    return;
+  }
+  const now = Date.now();
+  const rows = arr.map(e=>{
+    const p = jstParts(new Date(e.ms));
+    return { e, p, w: Math.pow(0.5, (now-e.ms)/86400000/ACT_HALF_LIFE_DAYS) };
+  });
+
+  /* 配信間隔（日付単位） */
+  const dates = Array.from(new Set(rows.map(r=>fmtDate(r.p)))).sort();
+  let hInt = '<div class="sub-h">配信間隔</div>';
+  const todayKey = fmtDate(todayJst());
+  const lastDate = dates[dates.length-1];
+  const since = dayDiff(lastDate, todayKey);
+  hInt += `<div style="font-size:14px;line-height:1.8;">
+    最後の配信：${lastDate}（${since<=0?'本日':since+'日前'}）<br>`;
+  if(liveNow.length) hInt += '現在：配信中<br>';
+  if(ups.length){
+    const nx = ups.slice().sort((a,b)=>a.ms-b.ms)[0];
+    const np = jstParts(new Date(nx.ms));
+    hInt += `次の予定：${fmtDate(np)}(${DOW[np.dow]}) ${fmtTime(np)}〜<br>`;
+  }else{
+    hInt += '次の予定：予定済みの配信なし（取得時点）<br>';
+  }
+  const gaps = [];
+  for(let i=1;i<dates.length;i++) gaps.push(dayDiff(dates[i-1], dates[i]));
+  if(gaps.length){
+    const g = gaps.slice(-10);
+    const avg = weightedAverage(g, x=>x);
+    const sorted = g.slice().sort((a,b)=>a-b);
+    const med = sorted.length%2 ? sorted[(sorted.length-1)/2] : (sorted[sorted.length/2-1]+sorted[sorted.length/2])/2;
+    hInt += `直近${g.length}回の間隔：${g.join('日 → ')}日<br>
+      直近重視の平均 <b>${(Math.round(avg*10)/10)}日</b>／中央値 ${med}日／最短 ${sorted[0]}日・最長 ${sorted[sorted.length-1]}日`;
+  }else{
+    hInt += '間隔を出すには、配信が2日分以上必要です。';
+  }
+  hInt += '</div>';
+
+  /* 曜日・時間帯・開始時刻（直近重視の重み付き） */
+  const dowW = [0,0,0,0,0,0,0], dowN = [0,0,0,0,0,0,0];
+  const bandW = ACT_BANDS.map(()=>0), bandN = ACT_BANDS.map(()=>0);
+  const hourW = new Array(24).fill(0);
+  rows.forEach(r=>{
+    dowW[r.p.dow] += r.w; dowN[r.p.dow]++;
+    const hh = +r.p.hh;
+    const bi = ACT_BANDS.findIndex(b=>hh>=b.a && hh<b.b);
+    if(bi>=0){ bandW[bi] += r.w; bandN[bi]++; }
+    hourW[hh] += r.w;
+  });
+  const maxD = Math.max(...dowW), maxB = Math.max(...bandW);
+  const topD = topIdx(dowW), topB = topIdx(bandW), topH = topIdx(hourW);
+  let hDow = '<div class="sub-h">曜日別</div>';
+  DOW.forEach((d,i)=>{ hDow += barRow(d+'曜', maxD? dowW[i]/maxD : 0, dowN[i]+'件'); });
+  let hBand = '<div class="sub-h">開始時間帯別</div>';
+  ACT_BANDS.forEach((b,i)=>{ hBand += barRow(b.n, maxB? bandW[i]/maxB : 0, bandN[i]+'件'); });
+  const hTrend = `<div style="font-size:14px;line-height:1.8;margin-top:10px;">
+    直近重視（${ACT_HALF_LIFE_DAYS}日で半減）で最も多い：<b>${DOW[topD]}曜</b>・<b>${ACT_BANDS[topB].n}</b>・<b>${topH}時台</b>開始<br>
+    <span style="font-size:12px;color:var(--muted);">過去${ACT_DAYS}日の配信${rows.length}件の集計です。棒は直近重視の割合、件数は実数です。予告ではありません。</span>
+  </div>`;
+
+  /* 月別の配信数（直近6か月） */
+  const cp = jstParts(new Date(actData.cutoff));
+  const tp = todayJst();
+  let hMon = '<div class="sub-h">月別の配信数</div>';
+  const monKeys = [];
+  for(let i=5;i>=0;i--){
+    let y = tp.y, m = tp.mo - i;
+    while(m<1){ m+=12; y--; }
+    monKeys.push({y,m});
+  }
+  const monN = monKeys.map(({y,m})=>rows.filter(r=>r.p.y===y && r.p.mo===m).length);
+  const maxM = Math.max(...monN, 1);
+  monKeys.forEach(({y,m},i)=>{
+    let tag = '';
+    if(y===tp.y && m===tp.mo) tag = '（途中）';
+    else if(y===cp.y && m===cp.mo && cp.d>1) tag = '（一部）';
+    hMon += barRow(`${m}月${tag}`, monN[i]/maxM, monN[i]+'件');
+  });
+
+  box.innerHTML = hInt + hDow + hBand + hTrend + hMon;
 }
 
 </script>
