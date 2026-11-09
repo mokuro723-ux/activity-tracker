@@ -205,6 +205,14 @@ def extract_live_broadcasts(html):
 # ────────────────────────────────────────────────
 # 2) メンテ日の抽出（複数ソース共通）
 # ────────────────────────────────────────────────
+def pick_mainte(cands, live_date, pref_dow):
+    """放送日当日・前日は除外し、直近傾向の曜日に合う候補を優先、無ければ最も早い候補。"""
+    c = [d for d in cands if d > live_date]
+    if not c:
+        return None
+    pref = [d for d in c if weekday_to_dow(d) == pref_dow]
+    return (pref or c)[0]
+
 def extract_mainte_dates(html, after_date=None, within_days=20):
     """
     ページ内から「M/D(曜)メンテ」「YYYY/M/D(曜)メンテ」等の記述を全部拾う。
@@ -304,22 +312,29 @@ def extract_gacha_switch_dates(html, after_date=None, within_days=20):
 
     return sorted(set(found))
 
-def estimate_mainte_date(live_date, is_anniv):
-    """
-    実測できなかった場合の推定。
-    通常らいぶ: +2日、水曜優先（確定パターン）
-    周年らいぶ: +1〜3日、月・火曜優先
-    """
-    if is_anniv:
-        base = live_date + datetime.timedelta(days=2)
-        preferred = [1, 2]  # 月・火
-    else:
-        base = live_date + datetime.timedelta(days=2)
-        preferred = [3, 2]  # 水・火
+def recent_mainte_dow(html, n=5):
+    """BA_REGULAR_HISTORY直近n件のメンテ曜日(0=日..6=土)の最頻値。直近ほど重い。取れなければ水曜(3)。
+    ※2025-12以降の通常らいぶ後メンテは4件中3件が水曜（残り1件は火曜）という直近傾向を反映するため、
+      固定の「火曜優先」ではなく実データから決める。"""
+    m = re.search(r'const BA_REGULAR_HISTORY\s*=\s*\[(.*?)\n\];', html, re.S)
+    if not m:
+        return 3
+    ds = re.findall(r'mainteDate:"(\d{4}-\d{2}-\d{2})"', m.group(1))[-n:]
+    cnt = {}
+    for i, x in enumerate(ds):
+        dw = weekday_to_dow(datetime.date.fromisoformat(x))
+        cnt[dw] = cnt.get(dw, 0) + (2 + i // 2)   # 新しいほど重み大
+    return max(cnt.items(), key=lambda kv: (kv[1], kv[0] == 3))[0] if cnt else 3
 
-    for offset in [0, 1, -1, 2, -2]:
-        d = base + datetime.timedelta(days=offset)
-        if weekday_to_dow(d) in preferred:
+def estimate_mainte_date(live_date, is_anniv, pref_dow=3):
+    """
+    実測できなかった場合の推定。放送の翌々日(+2日)以降で、直近傾向の曜日(既定:水)に最初に当たる日。
+    例: 日曜放送→+3日の水曜 / 土曜放送→+4日の水曜（2025-12, 2026-06, 2026-10の実績と一致）。
+    """
+    base = live_date + datetime.timedelta(days=2)
+    for k in range(7):
+        d = base + datetime.timedelta(days=k)
+        if weekday_to_dow(d) == pref_dow:
             return d
     return base
 
@@ -371,13 +386,13 @@ def insert_anniv_entry(html, live_date, live_time, title, mainte_date, mainte2_d
         html, flags=re.S, count=1
     )
 
-def insert_regular_entry(html, live_date, live_time, title, mainte_date):
+def insert_regular_entry(html, live_date, live_time, title, mainte_date, est=False):
     """通常らいぶエントリをBA_REGULAR_HISTORYに追記"""
     offset = (mainte_date - live_date).days
     entry = (
         f'  {{ label:"{live_date.year}/{live_date.month:02d}/{live_date.day:02d} {title[:16]}", '
         f'liveDate:"{fmt(live_date)}", mainteDate:"{fmt(mainte_date)}", '
-        f'offset:{offset}, liveTime:"{live_time}" }},\n'
+        f'offset:{offset}, liveTime:"{live_time}"{", est:true" if est else ""} }},\n'
     )
     def _replace(m):
         existing = m.group(2)
@@ -411,6 +426,31 @@ def insert_regular_mainte_extra(html, dates):
         html, flags=re.S, count=1
     )
 
+def refresh_estimated(html, pages, pref_dow):
+    """est:true（推定で入れたメンテ日）の行を、実測日が見つかり次第 実測値に置き換える。
+    放送が延期・前倒しになった場合や、メンテ告知が放送より後に出た場合のズレを自動で直すための処理。"""
+    changed = 0
+    def _fix(m):
+        nonlocal changed
+        line = m.group(0)
+        live = datetime.date.fromisoformat(m.group(1))
+        cands = []
+        for p in pages:
+            cands += extract_mainte_dates(p, after_date=live, within_days=10)
+        picked = pick_mainte(sorted(set(cands)), live, pref_dow)
+        if not picked:
+            return line
+        changed += 1
+        line = re.sub(r'mainteDate:"[\d-]+"', f'mainteDate:"{fmt(picked)}"', line)
+        line = re.sub(r'offset:\d+', f'offset:{(picked - live).days}', line)
+        line = line.replace(', est:true', '')
+        print(f"  推定→実測に更新: 放送{fmt(live)} → メンテ{fmt(picked)}({dow_jp(picked)})")
+        return line
+    def _block(bm):
+        return bm.group(1) + re.sub(r'.*liveDate:"([\d-]+)".*est:true.*', _fix, bm.group(2)) + bm.group(3)
+    html = re.sub(r'(const BA_REGULAR_HISTORY\s*=\s*\[)(.*?)(\n\];)', _block, html, count=1, flags=re.S)
+    return html, changed
+
 # ────────────────────────────────────────────────
 # メイン処理
 # ────────────────────────────────────────────────
@@ -431,6 +471,8 @@ def main():
     if block_m:
         existing_regular_dates = set(re.findall(r'liveDate:"(\d{4}-\d{2}-\d{2})"', block_m.group(1)))
     existing_titles = extract_existing_live_titles(html)
+    pref_dow = recent_mainte_dow(html)
+    print(f"直近のメンテ曜日(最頻): {DOW_JP[pref_dow]}")
 
     print(f"既存: 周年系ライブ日 {len(existing_live_dates)}件 / 通常ライブ日 {len(existing_regular_dates)}件")
 
@@ -478,11 +520,13 @@ def main():
                             if mainte_candidates:
                                 break
 
-                if mainte_candidates:
-                    mainte_date = mainte_candidates[0]
+                picked = pick_mainte(mainte_candidates, live_date, pref_dow)
+                is_est = picked is None
+                if picked:
+                    mainte_date = picked
                     print(f"    → メンテ日実測: {fmt(mainte_date)} ({dow_jp(mainte_date)})")
                 else:
-                    mainte_date = estimate_mainte_date(live_date, b["is_anniv_month"])
+                    mainte_date = estimate_mainte_date(live_date, b["is_anniv_month"], pref_dow)
                     print(f"    → メンテ日推定: {fmt(mainte_date)} ({dow_jp(mainte_date)})")
 
                 if b["is_anniv_month"]:
@@ -497,11 +541,12 @@ def main():
                         mainte2_candidates = extract_gacha_switch_dates(
                             live_html, after_date=mainte_date + datetime.timedelta(days=1), within_days=20
                         )
-                    mainte2_date = mainte2_candidates[0] if mainte2_candidates else (mainte_date + datetime.timedelta(days=11))
+                    # 実績は+7(5.5周年)/+14(4周年)/+15(4.5周年)。取れない時は最頻の+14日（同曜日）で仮置き
+                    mainte2_date = mainte2_candidates[0] if mainte2_candidates else (mainte_date + datetime.timedelta(days=14))
                     html = insert_anniv_entry(html, live_date, b["time"], b["title"], mainte_date, mainte2_date)
                     existing_live_dates.add(b["date"])
                 else:
-                    html = insert_regular_entry(html, live_date, b["time"], b["title"], mainte_date)
+                    html = insert_regular_entry(html, live_date, b["time"], b["title"], mainte_date, est=is_est)
                     existing_regular_dates.add(b["date"])
 
                 existing_titles.add(b["title"])
@@ -514,6 +559,9 @@ def main():
     # ── STEP 2: 単発の定期メンテ実績（らいぶに紐付かないもの）の収集 ──
     print(f"\n[2/2] 単発メンテ情報取得")
     try:
+        mainte_pages = []
+        known_dates = (extract_existing_dates(html, "BA_LIVE_HISTORY") | existing_regular_dates
+                       | set(re.findall(r'mainteDate:"(\d{4}-\d{2}-\d{2})"', html)))
         for url in MAINTE_INFO_URLS:
             print(f"  取得: {url}")
             mhtml = fetch(url)
@@ -522,11 +570,20 @@ def main():
                 continue
             # 直近1年以内のメンテ日を広く拾う
             one_year_ago = datetime.date.today() - datetime.timedelta(days=365)
+            mainte_pages.append(mhtml)
             dates = extract_mainte_dates(mhtml)
-            recent = [d for d in dates if d >= one_year_ago]
+            # 誤検出対策：定期メンテは平日のみ・放送日そのものは除外・遠い未来（告知済みの直近分以外）は除外
+            horizon = datetime.date.today() + datetime.timedelta(days=45)
+            recent = [d for d in dates
+                      if one_year_ago <= d <= horizon
+                      and weekday_to_dow(d) in (1, 2, 3, 4, 5)
+                      and fmt(d) not in known_dates]
             new_mainte_singles.extend(fmt(d) for d in recent)
             time.sleep(1)
 
+        if mainte_pages:
+            html, n_fix = refresh_estimated(html, mainte_pages + [live_html], pref_dow)
+            added += n_fix
         if new_mainte_singles:
             before = len(extract_existing_dates(html, "BA_REGULAR_MAINTE_EXTRA"))
             html = insert_regular_mainte_extra(html, set(new_mainte_singles))
