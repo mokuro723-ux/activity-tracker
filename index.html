@@ -166,6 +166,20 @@
   .mk.col{background:#fff;color:var(--c,#697184);border:1px solid var(--c,#697184);}
   #panel-act .subtabs button[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink);}
   #panel-act .subtabs{margin-top:4px;}
+  .heat{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .heat .hc{border:1px solid var(--line);border-radius:6px;padding:3px 2px;text-align:center;font-size:12px;line-height:1.25;background:#fbfbfc;}
+  .heat .hc small{display:block;font-size:10.5px;opacity:.85;}
+  details.fold{margin-top:12px;border-top:1px solid var(--line);padding-top:12px;}
+  details.fold>summary{cursor:pointer;font-weight:700;font-size:13.5px;color:var(--ink);list-style:none;}
+  details.fold>summary::-webkit-details-marker{display:none;}
+  details.fold>summary::after{content:" ▾";color:var(--muted);}
+  details.fold[open]>summary::after{content:" ▴";}
+  .cal-cell .mks{display:flex;flex-wrap:wrap;gap:2px;}
+  .bk{display:inline-block;font-size:10.5px;font-weight:700;padding:0 4px;border-radius:4px;line-height:1.5;white-space:nowrap;
+    color:#fff;background:var(--bc,#e07b00);border:1px solid var(--bc,#e07b00);}
+  .bk.live{--bc:#e07b00;} .bk.mini{--bc:#e07b00;background:#fff;color:#b35f00;}
+  .bk.anniv{--bc:#8a5cc7;} .bk.mainte{--bc:#8b93a5;background:#fff;color:#5b6272;}
+  .lg{display:inline-flex;align-items:center;gap:4px;margin:0 10px 4px 0;white-space:nowrap;}
   .legend{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7;}
   .hide{display:none !important;}
   .spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--ink);
@@ -382,32 +396,34 @@
   <!-- ============ 活動まとめ ============ -->
   <section id="panel-act" class="hide">
     <div class="card">
-      <h2>活動データ（推し2人分・この端末に保存）</h2>
-      <p style="font-size:13px;color:var(--muted);margin:-4px 0 12px;">
-        YouTubeタブに入力したAPIキーで、配信と予定済みの配信を取得して保存します。2回目以降は、前回の30日前から現在までを取り直して追加します。プレミア公開など16分未満は除外します。
-      </p>
-      <label class="field">
-        <span>取得する期間（さかのぼる長さ）</span>
-        <select id="act-years">
-          <option value="1">直近1年</option>
-          <option value="2">直近2年</option>
-          <option value="3" selected>直近3年</option>
-          <option value="5">直近5年</option>
-          <option value="0">全期間</option>
-        </select>
-      </label>
-      <button id="act-go" class="primary" style="background:var(--ink);" onclick="runActivity()">自チャンネルの配信を取得・更新</button>
-      <div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:14px 0 6px;">対象の推し（集計・コラボ候補の検索）</div>
-      <div class="chips" id="act-chips"></div>
-      <button id="act-collab-go" type="button" class="ghost" style="width:100%;padding:12px;" onclick="runCollab()">他チャンネルのコラボ候補を検索</button>
-      <div class="meta" style="margin-top:6px;">他チャンネルの検索はAPIの消費が大きく（実行前に目安を表示します）、結果は「候補」です。</div>
-      <p id="act-status" class="status"></p>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <h2 style="margin:0;">活動データ</h2>
+        <button id="act-go" class="primary" style="background:var(--ink);width:auto;padding:10px 16px;" onclick="runActivity()">取得・更新</button>
+      </div>
+      <p id="act-status" class="status" style="margin-top:10px;"></p>
+      <details class="fold">
+        <summary>取得の設定・他チャンネルの検索</summary>
+        <p style="font-size:13px;color:var(--muted);margin:10px 0 12px;">
+          YouTubeタブのAPIキーで、配信と予定済みの配信を取得して、この端末に保存します。2回目以降は、前回の30日前から現在までを取り直して追加します。プレミア公開など16分未満は除外します。
+        </p>
+        <label class="field">
+          <span>取得する期間（さかのぼる長さ）</span>
+          <select id="act-years">
+            <option value="1">直近1年</option>
+            <option value="2">直近2年</option>
+            <option value="3" selected>直近3年</option>
+            <option value="5">直近5年</option>
+            <option value="0">全期間</option>
+          </select>
+        </label>
+        <div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:14px 0 6px;">対象の推し（他チャンネル検索・集計）</div>
+        <div class="chips" id="act-chips2"></div>
+        <button id="act-collab-go" type="button" class="ghost" style="width:100%;padding:12px;" onclick="runCollab()">他チャンネルのコラボ候補を検索</button>
+        <div class="meta" style="margin-top:6px;">検索はAPIの消費が大きく（実行前に目安を表示します）、結果は「候補」です。</div>
+      </details>
     </div>
     <div id="act-body" class="hide">
-      <label class="check">
-        <input id="act-col-toggle" type="checkbox" onchange="actToggleCollab()" />
-        <span>他チャンネルのコラボ候補も表示に含める（集計は自チャンネルのみ）</span>
-      </label>
+      <div class="chips" id="act-toggles" style="margin-bottom:10px;"></div>
       <div class="subtabs" role="tablist">
         <button id="act-sub-cal"    role="tab" aria-selected="true"  onclick="actSwitchSub('cal')"    style="font-size:13px;">📅 予定</button>
         <button id="act-sub-stats"  role="tab" aria-selected="false" onclick="actSwitchSub('stats')"  style="font-size:13px;">📊 集計</button>
@@ -427,10 +443,20 @@
           <h2>月間カレンダー</h2>
           <div id="act-cal"></div>
           <div id="act-day" style="margin-top:12px;"></div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button id="act-copy-day" class="ghost" style="flex:1;padding:12px;" onclick="copyCalDay()">選んだ日をコピー</button>
+            <button id="act-copy-month" class="ghost" style="flex:1;padding:12px;" onclick="copyCalMonth()">この月をコピー</button>
+          </div>
         </div>
       </div>
 
       <div id="act-pane-stats" class="hide">
+        <div class="chips" id="act-chips" style="margin-bottom:10px;"></div>
+        <div class="card">
+          <h2>月別の傾向（予定づくり用・自チャンネルのみ）</h2>
+          <div id="act-mstat-opts"></div>
+          <div id="act-mstat"></div>
+        </div>
         <div class="card">
           <h2>推し別の集計（自チャンネルのみ）</h2>
           <div id="act-stats-opts"></div>
@@ -1638,6 +1664,8 @@ let actData = null;      // 上の保存形式
 let actView = null;      // 集計・コラボ検索の対象の推し
 let actSub = 'cal';      // 'cal' | 'stats' | 'search' | 'data'
 let actCollabOn = false; // 他チャンネルのコラボ候補を表示に含めるか
+let actBaOn = true;      // ブルアカのらいぶ系（らいぶ・みにらいぶ・周年放送）をカレンダーに表示するか
+let actBaMainteOn = false; // ブルアカのメンテもカレンダーに表示するか
 let actPeriod = '1y';    // 集計期間 '6m'|'1y'|'3y'|'all'
 let actWeight = 'recent';// 'recent'|'flat'
 let calY = 0, calM = 0, calSel = '';
@@ -1710,6 +1738,9 @@ function loadActCache(){
     actPeriod = store.get('act_period') || actPeriod;
     actWeight = store.get('act_weight') || actWeight;
     actCollabOn = store.get('act_col_on') === '1';
+    actBaOn = store.get('act_ba_on') !== '0';
+    actBaMainteOn = store.get('act_bam_on') === '1';
+    actMY = store.get('act_mm_y') || actMY;
   }catch(e){}
 }
 
@@ -1955,9 +1986,10 @@ function actSwitchSub(which){
   actSub = which;
   renderActivity();
 }
-function actToggleCollab(){
-  actCollabOn = document.getElementById('act-col-toggle').checked;
-  store.set('act_col_on', actCollabOn ? '1' : '0');
+function actTog(which){
+  if(which==='col'){ actCollabOn = !actCollabOn; store.set('act_col_on', actCollabOn ? '1' : '0'); }
+  if(which==='ba'){ actBaOn = !actBaOn; store.set('act_ba_on', actBaOn ? '1' : '0'); }
+  if(which==='bam'){ actBaMainteOn = !actBaMainteOn; store.set('act_bam_on', actBaMainteOn ? '1' : '0'); }
   renderActivity();
 }
 function actSetView(k){ actView = k; renderActivity(); }
@@ -1974,9 +2006,11 @@ function renderActivity(){
   }
   if(!actView || !OSHI_PRESETS[actView]) actView = twCurrentOshi();
   // 対象の推し（データ未取得でも表示する）
-  document.getElementById('act-chips').innerHTML = oshiKeys().map(k=>
+  const chipsHtml = oshiKeys().map(k=>
     `<button type="button" class="chip" aria-pressed="${k===actView}" onclick="actSetView('${k}')">${escapeHtml(OSHI_PRESETS[k].label)}</button>`
   ).join('');
+  document.getElementById('act-chips').innerHTML = chipsHtml;
+  document.getElementById('act-chips2').innerHTML = chipsHtml;
   document.getElementById('act-collab-go').textContent =
     `他チャンネルのコラボ候補を検索（${OSHI_PRESETS[actView].label}）`;
   const body = document.getElementById('act-body');
@@ -1986,7 +2020,10 @@ function renderActivity(){
     const p = todayJst();
     calY = p.y; calM = p.mo; calSel = fmtDate(p);
   }
-  document.getElementById('act-col-toggle').checked = actCollabOn;
+  document.getElementById('act-toggles').innerHTML =
+    `<span style="font-size:12.5px;color:var(--muted);font-weight:600;align-self:center;">表示</span>` +
+    [['col','他チャンネル候補',actCollabOn],['ba','ブルアカ らいぶ系',actBaOn],['bam','ブルアカ メンテ',actBaMainteOn]]
+      .map(([k,l,on])=>`<button type="button" class="chip" aria-pressed="${on}" onclick="actTog('${k}')">${l}</button>`).join('');
 
   // サブタブ
   [['cal','act-sub-cal'],['stats','act-sub-stats'],['search','act-sub-search'],['data','act-sub-data']].forEach(([k,id])=>{
@@ -2054,6 +2091,49 @@ function copyUpcoming(){
     return `${p.mo}月${p.d}日(${DOW[p.dow]}) ${tm}  【${OSHI_PRESETS[e.k].label}】${e.t}${ch}`;
   });
   copyText(lines.length ? lines.join('\n') : '（なし）', 'act-copy', 'live');
+}
+
+
+/* ---------- ブルアカの日程（このページ内のデータ。取得操作は不要） ---------- */
+// らいぶ(通常)=BA_REGULAR_HISTORY(2024/03〜)、みにらいぶ=同データのうちラベルに「みに」を含むもの、
+// 周年放送=BA_LIVE_HISTORY の type:'live'（1周年〜）、メンテ=各データのメンテ日。
+// 収録外の日付（2024/03より前の通常らいぶ等）は表示されない。
+const BA_KIND = {
+  live:   { mk:'ら', name:'ブルアカらいぶ' },
+  mini:   { mk:'み', name:'ブルアカ みにらいぶ' },
+  anniv:  { mk:'周', name:'ブルアカ 周年放送' },
+  mainte: { mk:'メ', name:'ブルアカ メンテ' },
+};
+let baMapCache = null;
+function baEventsMap(){
+  if(baMapCache) return baMapCache;
+  const map = {};
+  const seenM = new Set();
+  const add = (dk, o)=>{
+    if(o.kind==='mainte'){ if(seenM.has(dk)) return; seenM.add(dk); }
+    (map[dk] = map[dk] || []).push(o);
+  };
+  BA_LIVE_HISTORY.forEach(x=>{
+    if(x.type==='live') add(x.date, { kind:'anniv', name:x.label, time:x.time||'' });
+    else if(x.type==='mainte' || x.type==='mainte2') add(x.date, { kind:'mainte', name:x.label, time:x.time||'' });
+  });
+  BA_REGULAR_HISTORY.forEach(x=>{
+    const nm = x.label.replace(/^\d{4}\/\d{2}\/\d{2}\s*/, '');
+    add(x.liveDate, { kind:/みに/.test(x.label) ? 'mini' : 'live', name:nm, time:x.liveTime||'' });
+    add(x.mainteDate, { kind:'mainte', name:'定期メンテ', time:'' });
+  });
+  BA_REGULAR_MAINTE_EXTRA.forEach(dk=>add(dk, { kind:'mainte', name:'定期メンテ', time:'' }));
+  baMapCache = map;
+  return map;
+}
+function baForDay(dk){
+  const arr = baEventsMap()[dk] || [];
+  return arr.filter(e=> e.kind==='mainte' ? actBaMainteOn : actBaOn);
+}
+function baLine(dk, e){
+  const p = dk.split('-').map(Number);
+  const dow = new Date(Date.UTC(p[0], p[1]-1, p[2])).getUTCDay();
+  return `${p[1]}月${p[2]}日(${DOW[dow]}) ${e.time?e.time+'〜':''}  【${BA_KIND[e.kind].name}】${e.name}`;
 }
 
 /* ---------- 月間カレンダー（推し2人分を並べて表示） ---------- */
@@ -2137,8 +2217,10 @@ function renderCalendar(){
         marks += `<span class="mk c${oshiIdx(k)}${ex?' col':''}${allUp?' up':''}">${escapeHtml(OSHI_PRESETS[k].label.charAt(0))}${ex?'他':''}${mine.length>1?mine.length:''}</span>`;
       });
     });
+    const bas = baForDay(dk);
+    const bmarks = bas.map(e=>`<span class="bk ${e.kind}">${BA_KIND[e.kind].mk}</span>`).join('');
     const cls = ['cal-cell', dk===today?'today':'', dk===calSel?'sel':'', ks.length>=2?'both':''].filter(Boolean).join(' ');
-    h += `<button type="button" class="${cls}" onclick="calPick('${dk}')"><span class="dn">${d}</span>${marks}</button>`;
+    h += `<button type="button" class="${cls}" onclick="calPick('${dk}')"><span class="dn">${d}</span><span class="mks">${bmarks}${marks}</span></button>`;
   }
   h += '</div>';
   const cuts = oshiKeys().map(k=>{
@@ -2146,9 +2228,13 @@ function renderCalendar(){
     return `${OSHI_PRESETS[k].label} ${o ? (o.cutoff ? fmtDate(jf(o.cutoff))+' 以降' : '全期間') : '未取得'}`;
   }).join('／');
   h += `<div class="legend">
-    ${oshiKeys().map(k=>oshiMark(k)+' '+escapeHtml(OSHI_PRESETS[k].label)).join('　')}
-    <span class="mk up c0" style="--c:#697184;">予</span> 予定　<span class="mk col c0" style="--c:#697184;">他</span> 他チャンネル候補　太枠＝2人とも配信あり<br>
-    取得範囲：${escapeHtml(cuts)}（範囲外の日付は空欄です）
+    ${oshiKeys().map(k=>`<span class="lg">${oshiMark(k)} ${escapeHtml(OSHI_PRESETS[k].label)}</span>`).join('')}
+    <span class="lg"><span class="mk up c0" style="--c:#697184;">予</span>予定</span>
+    <span class="lg"><span class="mk col c0" style="--c:#697184;">他</span>他チャンネル</span>
+    ${actBaOn?`<span class="lg"><span class="bk live">ら</span>ブルアカらいぶ</span><span class="lg"><span class="bk mini">み</span>みにらいぶ</span><span class="lg"><span class="bk anniv">周</span>周年放送</span>`:''}
+    ${actBaMainteOn?`<span class="lg"><span class="bk mainte">メ</span>メンテ</span>`:''}
+    <span class="lg">太枠＝2人とも配信</span><br>
+    <span style="color:var(--muted);">取得範囲：${escapeHtml(cuts)}。ブルアカは通常らいぶが2024/03以降・周年放送が1周年以降の収録分です。</span>
   </div>`;
   box.innerHTML = h;
 
@@ -2158,8 +2244,15 @@ function renderCalendar(){
   const sp = calSel.split('-').map(Number);
   const sdow = new Date(Date.UTC(sp[0], sp[1]-1, sp[2])).getUTCDay();
   let dh = `<div class="sub-h">${sp[0]}年${sp[1]}月${sp[2]}日(${DOW[sdow]})</div>`;
+  const bas = baForDay(calSel);
+  if(bas.length){
+    dh += '<ul class="list">' + bas.map(e=>`<li>
+      <div class="item-top"><span class="date">${e.time?e.time+'〜':'時刻なし'}</span><span class="time live"><span class="bk ${e.kind}">${BA_KIND[e.kind].mk}</span></span></div>
+      <div class="title">${BA_KIND[e.kind].name}：${escapeHtml(e.name)}</div>
+    </li>`).join('') + '</ul>';
+  }
   if(!es.length){
-    dh += '<div class="empty" style="padding:10px 0;">この日の配信はありません。</div>';
+    dh += '<div class="empty" style="padding:10px 0;">この日の推しの配信はありません。</div>';
   }else{
     dh += '<ul class="list">' + es.map(e=>{
       const tm = e.st==='live' ? '配信中' : `${fmtTime(e.p)}${e.st==='up'?'〜予定':''}`;
@@ -2214,6 +2307,7 @@ function optChips(items, cur, fn){
 }
 
 function renderStats(){
+  renderMonthStats();
   const box = document.getElementById('act-stats');
   const opts = document.getElementById('act-stats-opts');
   opts.innerHTML =
@@ -2430,6 +2524,164 @@ function importActivity(){
     setStatus('act-data-status','読み込みました。','ok');
   }
 }
+
+
+/* ---------- カレンダーの一覧コピー ---------- */
+function actLine(e){
+  const p = e.p || jf(e.ms);
+  const tm = e.st==='live' ? '配信中' : `${fmtTime(p)}${e.st==='up'?'〜予定':'〜'}`;
+  const ch = e.src==='col' ? `（${e.ch||'他チャンネル'}）` : '';
+  return `${p.mo}月${p.d}日(${DOW[p.dow]}) ${tm}  【${OSHI_PRESETS[e.k].label}】${e.t}${ch}`;
+}
+function copyCalMonth(){
+  const map = actDayMap();
+  const pre = `${calY}-${pad2(calM)}-`;
+  const days = new Date(Date.UTC(calY, calM, 0)).getUTCDate();
+  const lines = [];
+  for(let d=1; d<=days; d++){
+    const dk = pre + pad2(d);
+    baForDay(dk).forEach(e=>lines.push(baLine(dk, e)));
+    (map[dk]||[]).forEach(e=>lines.push(actLine(e)));
+  }
+  copyText(lines.length ? `【${calY}年${calM}月の予定】\n` + lines.join('\n') : '（なし）', 'act-copy-month', 'live');
+}
+function copyCalDay(){
+  const lines = baForDay(calSel).map(e=>baLine(calSel, e)).concat((actDayMap()[calSel] || []).map(actLine));
+  copyText(lines.length ? lines.join('\n') : '（なし）', 'act-copy-day', 'live');
+}
+
+/* ---------- 月別の傾向（予定づくり用） ---------- */
+// 選んだ「何月」について、過去に完了した同じ月の実績（自チャンネル）を年をまたいで集計する。
+// 取得範囲に月全体が入っていない年、まだ終わっていない月（今月・未来）、配信開始前の月は含めない。
+const MSTAT_YEARS = [['1','1年'],['2','2年'],['3','3年'],['5','5年'],['0','全期間']];
+let actMM = 0;
+let actMY = '3';
+
+function monthStartMs(y, m){ return Date.UTC(y, m-1, 1) - 9*3600*1000; } // 日本時間のその月の1日0時
+function mstatData(){
+  const own = actData.own[actView];
+  if(!own) return null;
+  const done = own.items.filter(e=>actEffSt(e)!=='up');
+  if(!done.length) return { own, empty:true };
+  const first = done[0].ms;
+  const fp = jf(first);
+  const firstMonth = monthStartMs(fp.y, fp.mo);
+  const nowMs = Date.now(), now = todayJst();
+  const cand = [];
+  for(let y=now.y; y>=fp.y; y--){
+    const s = monthStartMs(y, actMM), e = monthStartMs(y, actMM+1);
+    if(e > nowMs) continue;                         // まだ終わっていない月
+    if(s < firstMonth) continue;                    // 配信開始より前
+    if(own.cutoff && s < own.cutoff) continue;      // 取得範囲に月全体が入っていない
+    cand.push(y);
+  }
+  const want = +actMY;
+  const years = want ? cand.slice(0, want) : cand;
+  const byYear = {};
+  years.forEach(y=>byYear[y] = []);
+  done.forEach(e=>{
+    const p = jf(e.ms);
+    if(p.mo===actMM && byYear[p.y]) byYear[p.y].push({...e, p});
+  });
+  return { own, years, byYear, skippedCoverage: want && cand.length < want };
+}
+
+function renderMonthStats(){
+  const box = document.getElementById('act-mstat');
+  const optBox = document.getElementById('act-mstat-opts');
+  if(!actMM){ actMM = (todayJst().mo % 12) + 1; }  // 初期値：来月（予定を立てる用途）
+  const mopts = Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===actMM?'selected':''}>${i+1}月</option>`).join('');
+  optBox.innerHTML =
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+       <select id="act-mm" onchange="actSetMM(this.value)" style="width:auto;padding:10px;">${mopts}</select>
+       <span style="font-size:13px;color:var(--muted);">の傾向（${escapeHtml(OSHI_PRESETS[actView].label)}）</span>
+     </div>
+     <div style="font-size:12.5px;color:var(--muted);font-weight:600;margin-bottom:6px;">さかのぼる年数（終わった同じ月だけ数えます）</div>
+     <div class="chips">${optChips(MSTAT_YEARS, actMY, 'actSetMY')}</div>`;
+  const d = mstatData();
+  if(!d){ box.innerHTML = '<div class="empty">この推しのデータが未取得です。上の「取得・更新」を実行してください。</div>'; return; }
+  if(d.empty){ box.innerHTML = '<div class="empty">配信データがありません。</div>'; return; }
+  if(!d.years.length){
+    box.innerHTML = `<div class="empty">取得済みの範囲に、終わった${actMM}月がありません。上の「取得する期間」を広げて取得してください。</div>`;
+    return;
+  }
+  const Y = d.years.length;
+  const all = d.years.flatMap(y=>d.byYear[y]);
+  let h = '';
+  if(d.skippedCoverage){
+    h += `<div class="meta" style="color:var(--live);margin-bottom:8px;">指定は${actMY}年ですが、取得範囲・配信開始の都合で${Y}年ぶんのみです。</div>`;
+  }
+  const yrsLabel = d.years.slice().sort((a,b)=>a-b).join('・');
+
+  /* 年ごとの配信数と日付 */
+  const total = all.length;
+  h += `<div class="sub-h">${actMM}月の年別実績（${yrsLabel}年）</div><div style="font-size:14px;line-height:1.8;">`;
+  d.years.forEach(y=>{
+    const es = d.byYear[y];
+    const ds = Array.from(new Set(es.map(e=>`${e.p.d}日(${DOW[e.p.dow]})`)));
+    h += `<b>${y}年</b>：${es.length}件${es.length? '　'+ds.join('　') : '（配信なし）'}<br>`;
+  });
+  h += `平均 <b>${(Math.round(total/Y*10)/10)}件</b>／月（${Y}年平均）</div>`;
+
+  /* 曜日別 */
+  const dowN = [0,0,0,0,0,0,0];
+  all.forEach(e=>dowN[e.p.dow]++);
+  const maxD = Math.max(...dowN, 1);
+  h += '<div class="sub-h">曜日別（この月の合計）</div>';
+  DOW.forEach((dw,i)=>{ h += barRow(dw+'曜', dowN[i]/maxD, dowN[i]+'件'); });
+  const topD = dowN.indexOf(Math.max(...dowN));
+
+  /* 日付別：何年で配信があったか */
+  const hitYears = new Array(32).fill(0), cnt = new Array(32).fill(0);
+  d.years.forEach(y=>{
+    const seen = new Set();
+    d.byYear[y].forEach(e=>{ cnt[e.p.d]++; seen.add(e.p.d); });
+    seen.forEach(dd=>hitYears[dd]++);
+  });
+  const dim = new Date(Date.UTC(2001, actMM, 0)).getUTCDate();   // その月の日数（うるう年の2/29は別処理）
+  const maxDay = actMM===2 ? 29 : dim;
+  let grid = '<div class="heat">';
+  for(let dd=1; dd<=maxDay; dd++){
+    const r = Y ? hitYears[dd]/Y : 0;
+    const bg = r>0 ? `background:rgba(23,26,35,${(0.12+0.78*r).toFixed(2)});color:${r>=0.5?'#fff':'var(--ink)'};` : '';
+    grid += `<div class="hc" style="${bg}"><span>${dd}</span><small>${hitYears[dd]}/${Y}</small></div>`;
+  }
+  grid += '</div>';
+  h += `<div class="sub-h">日付別：その日に配信があった年数（濃いほど多い）</div>${grid}`;
+  const topDays = [];
+  for(let dd=1; dd<=maxDay; dd++) if(hitYears[dd]>0) topDays.push(dd);
+  topDays.sort((a,b)=>hitYears[b]-hitYears[a] || cnt[b]-cnt[a] || a-b);
+  const best = topDays.slice(0,6);
+
+  /* 時間帯 */
+  const bandN = ACT_BANDS.map(()=>0), hourN = new Array(24).fill(0);
+  all.forEach(e=>{
+    const hh = +e.p.hh;
+    const bi = ACT_BANDS.findIndex(b=>hh>=b.a && hh<b.b);
+    if(bi>=0) bandN[bi]++;
+    hourN[hh]++;
+  });
+  const topB = bandN.indexOf(Math.max(...bandN)), topH = hourN.indexOf(Math.max(...hourN));
+
+  /* 目安のまとめ */
+  const summary = total
+    ? `最多の曜日：${DOW[topD]}曜（${dowN[topD]}件）\n` +
+      `配信があった年数が多い日：${best.map(dd=>`${dd}日（${hitYears[dd]}/${Y}年）`).join('、')}\n` +
+      `開始は${ACT_BANDS[topB].n}が多く、${topH}時台が最多`
+    : '過去の同じ月に配信はありませんでした。';
+  h += `<div class="sub-h">目安のまとめ</div>
+    <div style="font-size:14px;line-height:1.8;white-space:pre-line;">${escapeHtml(summary)}</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px;">過去${Y}年の同じ月の集計です。予告ではありません。</div>
+    <div style="margin-top:10px;"><button id="act-mstat-copy" class="ghost" style="width:100%;padding:12px;" onclick="copyMonthStats()">この月の傾向をコピー</button></div>`;
+  box.innerHTML = h;
+  actMStatText = `【${OSHI_PRESETS[actView].label}｜${actMM}月の傾向（${yrsLabel}年）】\n` +
+    d.years.map(y=>`${y}年：${d.byYear[y].length}件　` + Array.from(new Set(d.byYear[y].map(e=>`${e.p.d}日(${DOW[e.p.dow]})`))).join(' ')).join('\n') +
+    `\n平均：${(Math.round(total/Y*10)/10)}件／月\n` + summary;
+}
+let actMStatText = '';
+function actSetMM(v){ actMM = +v; renderMonthStats(); }
+function actSetMY(v){ actMY = v; store.set('act_mm_y', v); renderMonthStats(); }
+function copyMonthStats(){ copyText(actMStatText || '（なし）', 'act-mstat-copy', 'live'); }
 
 </script>
 </body>
