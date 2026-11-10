@@ -401,7 +401,7 @@
       </div>
       <p id="act-status" class="status" style="margin-top:10px;"></p>
       <details class="fold">
-        <summary>取得の設定・他チャンネルの検索</summary>
+        <summary>取得の設定・コラボの取得</summary>
         <p style="font-size:13px;color:var(--muted);margin:10px 0 12px;">
           YouTubeタブのAPIキーで、配信と予定済みの配信を取得して、この端末に保存します。2回目以降は、前回の30日前から現在までを取り直して追加します。プレミア公開など16分未満は除外します。
         </p>
@@ -417,8 +417,14 @@
         </label>
         <div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:14px 0 6px;">対象の推し（他チャンネル検索・集計）</div>
         <div class="chips" id="act-chips2"></div>
+        <div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:14px 0 6px;">① 本人の再生リストから取得（おすすめ・確実）</div>
+        <button id="act-pl-load" type="button" class="ghost" style="width:100%;padding:12px;" onclick="loadPlaylists()">本人の再生リスト一覧を読み込む</button>
+        <div id="act-pl-box" style="margin:10px 0;"></div>
+        <button id="act-pl-go" type="button" class="ghost hide" style="width:100%;padding:12px;" onclick="runPlaylists()">選んだリストのコラボ配信を取得</button>
+        <div class="meta" style="margin-top:6px;">本人が公開している再生リストだけが対象です（消費はごくわずか）。選んだリストは、上の「取得・更新」でも一緒に更新されます。配信ではない動画と本人のチャンネルの動画は除外します。</div>
+        <div style="font-size:12.5px;color:var(--muted);font-weight:600;margin:16px 0 6px;">② 名前で検索（補助・不確実）</div>
         <button id="act-collab-go" type="button" class="ghost" style="width:100%;padding:12px;" onclick="runCollab()">他チャンネルのコラボ候補を検索</button>
-        <div class="meta" style="margin-top:6px;">検索はAPIの消費が大きく（実行前に目安を表示します）、結果は「候補」です。</div>
+        <div class="meta" style="margin-top:6px;">検索はAPIの消費が大きく（実行前に目安を表示します）、結果は「候補」です。他の人が描いているだけの配信も混ざります。</div>
       </details>
     </div>
     <div id="act-body" class="hide">
@@ -506,7 +512,7 @@
 // このファイルの最終更新日（デプロイのたびに更新すること）。
 // 画面下部に小さく表示することで、実機で開いた内容が最新版かどうかを
 // キャッシュに惑わされず目視確認できるようにする。
-const BUILD_DATE = "2026-11-05";
+const BUILD_DATE = "2026-11-10";
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('build-info');
   if(el) el.textContent = `build: ${BUILD_DATE}`;
@@ -1637,7 +1643,9 @@ renderTwSets();
 // 保存形式：localStorage 'act_cache_v2' =
 //   { v:2,
 //     own:{ natori:{ cid, cutoff, fetchedAt, items:[{id,t,ms,st,d}] }, ... },   … 自チャンネルの配信
-//     col:{ natori:{ cutoff, fetchedAt, items:[{id,t,ms,st,d,ch}] }, ... } }    … 他チャンネルのコラボ候補
+//     col:{ natori:{ cutoff, fetchedAt, items:[{id,t,ms,st,d,ch}] }, ... },     … 他チャンネルのコラボ候補（検索）
+//     pl:{ natori:{ cid, lists:[{id,title,n}], sel:[リストID], listedAt, fetchedAt,
+//                   items:[{id,t,ms,st,d,ch,pl}] }, ... } }                      … 本人の再生リスト由来の確定コラボ（pl=リスト名）
 //   st: 'done'=終了済み / 'live'=取得時点で配信中 / 'up'=予定済み、 d: 配信時間（分）
 //   cutoff: ここより新しい期間を取得済み（0=全期間）、 fetchedAt: 最終取得時刻（ms）
 const ACT_KEY2 = 'act_cache_v2';
@@ -1655,7 +1663,8 @@ const COLLAB_SKIP = /切り抜き|切抜|まとめ|クリップ|clip|shorts|#sho
 let actData = null;      // 上の保存形式
 let actView = null;      // 集計・コラボ検索の対象の推し
 let actSub = 'cal';      // 'cal' | 'stats' | 'search' | 'data'
-let actCollabOn = false; // 他チャンネルのコラボ候補を表示に含めるか
+let actCollabOn = false; // 他チャンネルのコラボ候補（検索）を表示に含めるか
+let actPlOn = true;      // 本人の再生リストから取得したコラボ配信を表示に含めるか
 let actBaOn = true;      // ブルアカのらいぶ系（らいぶ・みにらいぶ・周年放送）をカレンダーに表示するか
 let actBaMainteOn = false; // ブルアカのメンテもカレンダーに表示するか
 let actPeriod = '1y';    // 集計期間 '6m'|'1y'|'3y'|'all'
@@ -1692,10 +1701,10 @@ function actSave(){
     return false;
   }
 }
-function actEmpty(){ return { v:2, own:{}, col:{} }; }
+function actEmpty(){ return { v:2, own:{}, col:{}, pl:{} }; }
 function actNormalize(o){
   // v1（直近のみ・data:{key:[...]}）→ v2
-  if(o && o.v===2 && o.own){ o.col = o.col || {}; return o; }
+  if(o && o.v===2 && o.own){ o.col = o.col || {}; o.pl = o.pl || {}; return o; }
   if(o && o.data && o.cutoff){
     const n = actEmpty();
     Object.keys(o.data).forEach(k=>{
@@ -1716,6 +1725,7 @@ function loadActCache(){
     actPeriod = store.get('act_period') || actPeriod;
     actWeight = store.get('act_weight') || actWeight;
     actCollabOn = store.get('act_col_on') === '1';
+    actPlOn = store.get('act_pl_on') !== '0';
     actBaOn = store.get('act_ba_on') !== '0';
     actBaMainteOn = store.get('act_bam_on') === '1';
     actMY = store.get('act_mm_y') || actMY;
@@ -1809,6 +1819,7 @@ async function runActivity(){
     for(const k of oshiKeys()){
       const lab = escapeHtml(OSHI_PRESETS[k].label);
       await updateOwn(apiKey, k, want, t=>setStatus('act-status', `<span class="spin"></span>${lab}：${t}`));
+      await updatePl(apiKey, k, t=>setStatus('act-status', `<span class="spin"></span>${lab}：${t}`));   // 選択済みの再生リストがあれば一緒に更新
       actSave();           // 1人ごとに保存（途中で失敗しても取得済み分は残す）
     }
     renderActivity();
@@ -1945,16 +1956,160 @@ async function runCollab(){
   }
 }
 
+/* ---------- 取得：本人の再生リスト（確定コラボ） ---------- */
+// 本人が公開している再生リストを読み、選んだリストの中の「他チャンネルの配信」を確定コラボとして保存する。
+// playlists / playlistItems / videos は各1ユニットなので、検索よりずっと軽い。
+const PL_AUTO = /コラボ|ゲスト|凸|collab|共演|対談|ご一緒|お邪魔/i;   // 初回に自動で選ぶリスト名
+const PL_MAX_PAGES = 40;                                           // 1リストあたりの最大ページ数（50件/ページ）
+async function plChannelId(apiKey, k){
+  const o = actData.own[k];
+  if(o && o.cid) return o.cid;
+  return resolveChannel(OSHI_PRESETS[k].ytHandle, apiKey);
+}
+async function loadPlaylists(){
+  const keyEl = document.getElementById('yt-key');
+  const apiKey = ((keyEl && keyEl.value) || store.get('yt_key') || '').trim();
+  if(!apiKey){ setStatus('act-status','YouTubeタブでAPIキーを入力してください。','err'); return; }
+  store.set('yt_key', apiKey);
+  if(!actData) actData = actEmpty();
+  const k = actView, btn = document.getElementById('act-pl-load');
+  btn.disabled = true;
+  try{
+    setStatus('act-status', `<span class="spin"></span>${escapeHtml(OSHI_PRESETS[k].label)}：再生リスト一覧を取得中…`);
+    const cid = await plChannelId(apiKey, k);
+    const lists = [];
+    let pageToken = '';
+    do{
+      const params = { part:'snippet,contentDetails', channelId:cid, maxResults:50 };
+      if(pageToken) params.pageToken = pageToken;
+      const j = await yapi('playlists', params, apiKey);
+      (j.items||[]).forEach(it=>lists.push({ id:it.id, title:it.snippet.title, n:(it.contentDetails&&it.contentDetails.itemCount)||0 }));
+      pageToken = j.nextPageToken || '';
+    }while(pageToken && lists.length < 500);
+    const cur = actData.pl[k];
+    const ids = new Set(lists.map(l=>l.id));
+    const sel = cur ? (cur.sel||[]).filter(id=>ids.has(id)) : lists.filter(l=>PL_AUTO.test(l.title)).map(l=>l.id);
+    actData.pl[k] = { cid, lists, sel, listedAt:Date.now(), fetchedAt:cur?cur.fetchedAt:0, items:cur?cur.items:[] };
+    actSave();
+    renderPlBox();
+    setStatus('act-status',
+      lists.length
+        ? `${escapeHtml(OSHI_PRESETS[k].label)}：公開の再生リストが${lists.length}件ありました。コラボ配信を集めたものにチェックして「取得」を押してください。` +
+          (cur ? '' : `名前に「コラボ」「ゲスト」などを含むものは自動でチェック済みです（${sel.length}件）。`)
+        : `${escapeHtml(OSHI_PRESETS[k].label)}：公開の再生リストが見つかりませんでした。他チャンネルの検索（②）をお使いください。`,
+      lists.length ? 'ok' : 'err');
+  }catch(e){
+    setStatus('act-status', escapeHtml(apiErrMsg(e, false)), 'err');
+  }finally{
+    btn.disabled = false;
+  }
+}
+function renderPlBox(){
+  const box = document.getElementById('act-pl-box'), go = document.getElementById('act-pl-go');
+  if(!box) return;
+  const st = actData && actData.pl && actData.pl[actView];
+  if(!st || !st.lists || !st.lists.length){
+    box.innerHTML = '<div class="meta">まだ再生リストを読み込んでいません。</div>';
+    go.classList.add('hide');
+    return;
+  }
+  const sel = new Set(st.sel||[]);
+  box.innerHTML = st.lists.map(l=>
+    `<label style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:14px;cursor:pointer;">` +
+    `<input type="checkbox" style="width:auto;margin-top:3px;" ${sel.has(l.id)?'checked':''} onchange="plToggle('${l.id}')">` +
+    `<span>${escapeHtml(l.title)} <span class="meta">（${l.n}本）</span></span></label>`
+  ).join('') +
+  (st.fetchedAt ? `<div class="meta" style="margin-top:6px;">取得済み：確定コラボ${st.items.length}件（${fmtDate(jf(st.fetchedAt))}取得）</div>` : '');
+  go.classList.remove('hide');
+}
+function plToggle(id){
+  const st = actData.pl[actView];
+  if(!st) return;
+  const set = new Set(st.sel||[]);
+  if(set.has(id)) set.delete(id); else set.add(id);
+  st.sel = Array.from(set);
+  actSave();
+}
+async function updatePl(apiKey, k, say){
+  const st = actData.pl[k];
+  if(!st || !(st.sel||[]).length) return null;
+  const cid = st.cid || await plChannelId(apiKey, k);
+  const titleOf = new Map(st.lists.map(l=>[l.id, l.title]));
+  const vidList = new Map();   // videoId -> リスト名（最初に見つかったもの）
+  for(const lid of st.sel){
+    let pageToken = '', pages = 0;
+    while(pages < PL_MAX_PAGES){
+      say(`再生リスト「${titleOf.get(lid)||lid}」を読み込み中…（${vidList.size}本）`);
+      const params = { part:'contentDetails', playlistId:lid, maxResults:50 };
+      if(pageToken) params.pageToken = pageToken;
+      const j = await yapi('playlistItems', params, apiKey);
+      (j.items||[]).forEach(it=>{
+        const vid = it.contentDetails && it.contentDetails.videoId;
+        if(vid && !vidList.has(vid)) vidList.set(vid, titleOf.get(lid)||'');
+      });
+      pageToken = j.nextPageToken || '';
+      if(!pageToken) break;
+      pages++;
+    }
+  }
+  const ids = Array.from(vidList.keys());
+  const items = [];
+  let own = 0, nonLive = 0;
+  for(let i=0;i<ids.length;i+=50){
+    say(`動画の詳細を取得中…（${Math.min(i+50,ids.length)} / ${ids.length}）`);
+    const j = await yapi('videos',{part:'snippet,liveStreamingDetails,contentDetails',id:ids.slice(i,i+50).join(',')},apiKey);
+    for(const v of (j.items||[])){
+      if(v.snippet.channelId === cid){ own++; continue; }
+      const e = classifyVideo(v);
+      if(!e){ nonLive++; continue; }
+      e.ch = v.snippet.channelTitle || '';
+      e.pl = vidList.get(v.id) || '';
+      items.push(e);
+    }
+  }
+  items.sort((a,b)=>a.ms-b.ms);
+  st.items = items; st.fetchedAt = Date.now(); st.cid = cid;
+  return { total:ids.length, live:items.length, own, nonLive };
+}
+async function runPlaylists(){
+  const keyEl = document.getElementById('yt-key');
+  const apiKey = ((keyEl && keyEl.value) || store.get('yt_key') || '').trim();
+  if(!apiKey){ setStatus('act-status','YouTubeタブでAPIキーを入力してください。','err'); return; }
+  const k = actView, st = actData && actData.pl && actData.pl[k];
+  if(!st || !(st.sel||[]).length){ setStatus('act-status','取得する再生リストにチェックを入れてください。','err'); return; }
+  const btn = document.getElementById('act-pl-go');
+  btn.disabled = true;
+  try{
+    const r = await updatePl(apiKey, k, t=>setStatus('act-status', `<span class="spin"></span>${escapeHtml(OSHI_PRESETS[k].label)}：${t}`));
+    actSave();
+    store.set('act_pl_on','1'); actPlOn = true;
+    renderActivity();
+    setStatus('act-status',
+      `${escapeHtml(OSHI_PRESETS[k].label)}：確定コラボ${r.live}件を保存しました（リスト内${r.total}本のうち、配信ではない動画${r.nonLive}本・本人チャンネルの動画${r.own}本は除外）。`, 'ok');
+  }catch(e){
+    actSave();
+    setStatus('act-status', escapeHtml(apiErrMsg(e, true)), 'err');
+  }finally{
+    btn.disabled = false;
+  }
+}
+
 /* ---------- 表示の入口 ---------- */
 // 自チャンネル（＋トグルONなら他チャンネル候補）を1つの配列にまとめる。
 function actAll(withCollab){
   const out = [];
   oshiKeys().forEach(k=>{
     const o = actData.own[k];
-    if(o) o.items.forEach(e=>out.push({...e, k, src:'own'}));
+    const seen = new Set();
+    if(o) o.items.forEach(e=>{ seen.add(e.id); out.push({...e, k, src:'own'}); });
+    const p = actData.pl && actData.pl[k];
+    if(actPlOn && p && p.items) p.items.forEach(e=>{                 // 本人の再生リスト由来（確定）を優先
+      if(seen.has(e.id)) return;
+      seen.add(e.id); out.push({...e, k, src:'col', cf:true});
+    });
     if(withCollab){
       const c = actData.col[k];
-      if(c) c.items.forEach(e=>out.push({...e, k, src:'col'}));
+      if(c) c.items.forEach(e=>{ if(!seen.has(e.id)) out.push({...e, k, src:'col'}); });
     }
   });
   return out;
@@ -1965,6 +2120,7 @@ function actSwitchSub(which){
   renderActivity();
 }
 function actTog(which){
+  if(which==='pl'){ actPlOn = !actPlOn; store.set('act_pl_on', actPlOn ? '1' : '0'); }
   if(which==='col'){ actCollabOn = !actCollabOn; store.set('act_col_on', actCollabOn ? '1' : '0'); }
   if(which==='ba'){ actBaOn = !actBaOn; store.set('act_ba_on', actBaOn ? '1' : '0'); }
   if(which==='bam'){ actBaMainteOn = !actBaMainteOn; store.set('act_bam_on', actBaMainteOn ? '1' : '0'); }
@@ -1992,6 +2148,7 @@ function renderActivity(){
   document.getElementById('act-collab-go').textContent =
     `他チャンネルのコラボ候補を検索（${OSHI_PRESETS[actView].label}）`;
   const body = document.getElementById('act-body');
+  renderPlBox();   // 未取得でも再生リスト欄は描画する
   if(!actData){ body.classList.add('hide'); return; }
   body.classList.remove('hide');
   if(!calY){
@@ -2000,7 +2157,7 @@ function renderActivity(){
   }
   document.getElementById('act-toggles').innerHTML =
     `<span style="font-size:12.5px;color:var(--muted);font-weight:600;align-self:center;">表示</span>` +
-    [['col','他チャンネル候補',actCollabOn],['ba','ブルアカ らいぶ系',actBaOn],['bam','ブルアカ メンテ',actBaMainteOn]]
+    [['pl','コラボ（本人リスト）',actPlOn],['col','他チャンネル候補（検索）',actCollabOn],['ba','ブルアカ らいぶ系',actBaOn],['bam','ブルアカ メンテ',actBaMainteOn]]
       .map(([k,l,on])=>`<button type="button" class="chip" aria-pressed="${on}" onclick="actTog('${k}')">${l}</button>`).join('');
 
   // サブタブ
@@ -2038,7 +2195,11 @@ function actUpcoming(){
   arr.sort((a,b)=>a.ms-b.ms);
   return arr;
 }
-function chPill(e){ return e.src==='col' ? ` <span class="pill other">${escapeHtml(e.ch||'他チャンネル')}</span>` : ''; }
+function chPill(e){
+  if(e.src!=='col') return '';
+  return e.cf ? ` <span class="pill collab" title="本人の再生リスト：${escapeHtml(e.pl||'')}">${escapeHtml(e.ch||'他チャンネル')}</span>`
+              : ` <span class="pill other">${escapeHtml(e.ch||'他チャンネル')}</span>`;
+}
 function renderUpcoming(){
   const ul = document.getElementById('act-upcoming');
   const arr = actUpcoming();
@@ -2152,7 +2313,7 @@ function calPick(dk){ calSel = dk; renderCalendar(); }
 function actMinYear(){
   let mn = todayJst().y;
   oshiKeys().forEach(k=>{
-    [actData.own[k], actData.col[k]].forEach(o=>{
+    [actData.own[k], actData.col[k], actData.pl && actData.pl[k]].forEach(o=>{
       if(o && o.items.length) mn = Math.min(mn, jf(o.items[0].ms).y);
     });
   });
@@ -2208,7 +2369,7 @@ function renderCalendar(){
   h += `<div class="legend">
     ${oshiKeys().map(k=>`<span class="lg">${oshiMark(k)} ${escapeHtml(OSHI_PRESETS[k].label)}</span>`).join('')}
     <span class="lg"><span class="mk up c0" style="--c:#697184;">予</span>予定</span>
-    <span class="lg"><span class="mk col c0" style="--c:#697184;">他</span>他チャンネル</span>
+    <span class="lg"><span class="mk col c0" style="--c:#697184;">他</span>他チャンネル（橙＝本人リスト／灰＝検索候補）</span>
     ${actBaOn?`<span class="lg"><span class="bk live">ら</span>ブルアカらいぶ</span><span class="lg"><span class="bk mini">み</span>みにらいぶ</span><span class="lg"><span class="bk anniv">周</span>周年放送</span>`:''}
     ${actBaMainteOn?`<span class="lg"><span class="bk mainte">メ</span>メンテ</span>`:''}
     <span class="lg">太枠＝2人とも配信</span><br>
@@ -2478,10 +2639,11 @@ function renderDataPane(){
   let size = 0;
   try{ size = (store.get(ACT_KEY2)||'').length; }catch(e){}
   const rows = oshiKeys().map(k=>{
-    const o = actData.own[k], c = actData.col[k];
+    const o = actData.own[k], c = actData.col[k], pl = actData.pl && actData.pl[k];
     const a = o ? `自チャンネル ${o.items.filter(e=>e.st!=='up').length}件（${o.cutoff?fmtDate(jf(o.cutoff))+'〜':'全期間'}、${fmtDate(jf(o.fetchedAt))}取得）` : '自チャンネル 未取得';
     const b = c ? `コラボ候補 ${c.items.length}件（${c.cutoff?fmtDate(jf(c.cutoff))+'〜':'全期間'}、${fmtDate(jf(c.fetchedAt))}取得）` : 'コラボ候補 未取得';
-    return `<li><div class="title" style="font-weight:700;margin-top:0;">${escapeHtml(OSHI_PRESETS[k].label)}</div><div class="meta">${a}<br>${b}</div></li>`;
+    const p = pl && pl.fetchedAt ? `確定コラボ（本人の再生リスト${(pl.sel||[]).length}件）${pl.items.length}件（${fmtDate(jf(pl.fetchedAt))}取得）` : '確定コラボ（本人の再生リスト） 未取得';
+    return `<li><div class="title" style="font-weight:700;margin-top:0;">${escapeHtml(OSHI_PRESETS[k].label)}</div><div class="meta">${a}<br>${p}<br>${b}</div></li>`;
   }).join('');
   info.innerHTML = `<ul class="list">${rows}</ul><div class="meta" style="margin-top:8px;">保存容量：約${Math.round(size/1024)}KB</div>`;
 }
